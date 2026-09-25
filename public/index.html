@@ -28,6 +28,7 @@
 </head>
 <body>
 <div class="wrap">
+
   <header>
     <h1>🎭 Imposter</h1>
     <div class="muted">Multiplayer party game</div>
@@ -35,125 +36,245 @@
 
   <section id="home" class="card">
     <h2>Create or Join</h2>
+
     <label>Your name</label>
     <input id="name" maxlength="30" placeholder="Enter your name">
+
     <div class="actions">
       <button id="createBtn">Create Game</button>
     </div>
+
     <hr style="border:0;border-top:1px solid #eee;margin:22px 0">
+
     <label>Game code</label>
     <input id="code" maxlength="6" placeholder="ABC123" style="text-transform:uppercase">
+
     <div class="actions">
       <button id="joinBtn" class="secondary">Join Game</button>
     </div>
+
     <div id="homeError"></div>
   </section>
 
   <section id="lobby" class="card hidden">
+
     <div class="actions" style="justify-content:space-between;align-items:center">
-      <div><span id="roleBadge" class="badge"></span></div>
+      <div>
+        <span id="roleBadge" class="badge"></span>
+      </div>
+
       <div class="muted">Game code</div>
     </div>
-    <div style="margin:8px 0 18px"><span id="roomCode" class="code"></span></div>
+
+    <div style="margin:8px 0 18px">
+      <span id="roomCode" class="code"></span>
+    </div>
 
     <div class="grid">
+
       <div class="panel">
         <div class="muted small">Players joined</div>
         <div id="playerCount" class="stat"></div>
       </div>
+
       <div class="panel">
         <div class="muted small">Imposters</div>
         <div id="imposterCount" class="stat"></div>
       </div>
+
     </div>
 
     <div id="lobbyMessage" class="notice"></div>
+
     <div id="hostControls" class="hidden">
+
       <button id="startBtn">Start Game</button>
-      <div class="muted small" style="margin-top:8px">You are the host/controller. You will not receive a secret word and will not vote.</div>
+
+      <div class="muted small" style="margin-top:8px">
+        You are the host/controller. You will not receive a secret word and will not vote.
+      </div>
+
     </div>
 
     <h3>Players</h3>
+
     <ul id="playersList" class="players"></ul>
+
   </section>
 
   <section id="setup" class="card hidden">
+
     <span class="badge hostbadge">HOST CONTROL</span>
+
     <h2>Game Setup</h2>
+
     <div id="setupSummary" class="notice"></div>
+
     <label>Normal-player word</label>
+
     <input id="normalWord" placeholder="Example: Beach">
+
     <div id="imposterFields"></div>
+
     <div class="actions">
-      <button id="submitWords">Submit & Start Player Game</button>
-    </div>
-    <div id="setupError"></div>
-  </section>
-
-  <section id="playing" class="card hidden">
-    <span id="playingRole" class="badge"></span>
-    <h2>Clue Round</h2>
-    <div id="playingMessage" class="notice"></div>
-
-    <div id="hostImposterPanel" class="panel hidden" style="margin:14px 0">
-      <strong>🔒 Host Only — Imposter(s)</strong>
-      <div id="hostImposterList" style="margin-top:8px"></div>
-      <div class="muted small" style="margin-top:8px">
-        Keep this information private. You can continue the game manually if the site stops working.
-      </div>
-    </div>
-
-    <button id="openVotingBtn" class="hidden">Open Voting</button>
-  </section>
-
-  <section id="secret" class="card hidden">
-    <h2>Your Secret Word</h2>
-    <div class="word" id="secretWord"></div>
-    <div class="notice">Keep this word private. Do not show your screen to anyone.</div>
-    <button id="hideSecret">I Remember My Word</button>
-  </section>
-
-  <section id="voting" class="card hidden">
-    <h2>Vote</h2>
-    <div id="voteSummary" class="notice"></div>
-    <form id="voteForm">
-      <div id="voteOptions"></div>
-      <div class="actions"><button id="submitVote" type="submit">Submit Vote</button></div>
-    </form>
-    <div id="voteError"></div>
-  </section>
-
-  <section id="hostVoting" class="card hidden">
-    <span class="badge hostbadge">HOST CONTROL</span>
-    <h2>Voting Progress</h2>
-    <div id="hostVoteProgress" class="stat"></div>
-    <div class="notice">Votes are private. You will get the Reveal Results button only after every player has voted.</div>
-    <button id="revealBtn" disabled>Reveal Results</button>
-    <div id="revealError"></div>
-  </section>
-
-  <section id="results" class="card hidden">
-    <h2>🎉 Results Revealed</h2>
-    <div id="resultsSummary" class="notice"></div>
-    <h3>Imposters</h3>
-    <div id="impostersResult"></div>
-    <h3>Voting Results</h3>
-    <div id="resultsTable"></div>
-    <h3>Words</h3>
-    <div id="wordsResult"></div>
-
-    <div class="actions" style="margin-top:20px">
-      <button id="playAgainBtn" class="hidden">
-        Play Another Round
+      <button id="submitWords">
+        Submit & Start Player Game
       </button>
     </div>
 
-    <div id="playAgainMessage" class="muted small" style="margin-top:10px"></div>
+    <div id="setupError"></div>
+
   </section>
+
+  <section id="playing" class="card hidden">
+
+    <span id="playingRole" class="badge"></span>
+
+    <h2>Clue Round</h2>
+
+    <div id="playingMessage" class="notice"></div>
+
+    <!-- HOST ONLY IMPOSTER INFORMATION -->
+    <div
+      id="hostImposterPanel"
+      class="panel hidden"
+      style="margin:14px 0"
+    >
+
+      <strong>🔒 HOST ONLY — IMPOSTER(S)</strong>
+
+      <div
+        id="hostImposterList"
+        style="margin-top:8px"
+      ></div>
+
+      <div
+        class="muted small"
+        style="margin-top:8px"
+      >
+        Keep this information private. If the game UI stops working,
+        you can continue the game manually using this list.
+      </div>
+
+    </div>
+
+    <button id="openVotingBtn" class="hidden">
+      Open Voting
+    </button>
+
+  </section>
+
+  <section id="secret" class="card hidden">
+
+    <h2>Your Secret Word</h2>
+
+    <div class="word" id="secretWord"></div>
+
+    <div class="notice">
+      Keep this word private. Do not show your screen to anyone.
+    </div>
+
+    <button id="hideSecret">
+      I Remember My Word
+    </button>
+
+  </section>
+
+  <section id="voting" class="card hidden">
+
+    <h2>Vote</h2>
+
+    <div id="voteSummary" class="notice"></div>
+
+    <form id="voteForm">
+
+      <div id="voteOptions"></div>
+
+      <div class="actions">
+        <button id="submitVote" type="submit">
+          Submit Vote
+        </button>
+      </div>
+
+    </form>
+
+    <div id="voteError"></div>
+
+  </section>
+
+  <section id="hostVoting" class="card hidden">
+
+    <span class="badge hostbadge">
+      HOST CONTROL
+    </span>
+
+    <h2>Voting Progress</h2>
+
+    <div id="hostVoteProgress" class="stat"></div>
+
+    <div class="notice">
+      Votes are private. You will get the Reveal Results button
+      only after every player has voted.
+    </div>
+
+    <button id="revealBtn" disabled>
+      Reveal Results
+    </button>
+
+    <div id="revealError"></div>
+
+  </section>
+
+  <section id="results" class="card hidden">
+
+    <h2>🎉 Results Revealed</h2>
+
+    <div id="resultsSummary" class="notice"></div>
+
+    <h3>Imposters</h3>
+
+    <div id="impostersResult"></div>
+
+    <h3>Voting Results</h3>
+
+    <div id="resultsTable"></div>
+
+    <h3>Words</h3>
+
+    <div id="wordsResult"></div>
+
+    <div
+      class="actions"
+      style="margin-top:20px"
+    >
+
+      <button id="playAgainBtn" class="hidden">
+        Play Another Round
+      </button>
+
+      <button
+        id="startNewGameBtn"
+        class="secondary hidden"
+      >
+        Start New Game
+      </button>
+
+    </div>
+
+    <div
+      id="playAgainMessage"
+      class="muted small"
+      style="margin-top:10px"
+    ></div>
+
+  </section>
+
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+
 <script>
+
 const socket = io({
   reconnection: true,
   reconnectionAttempts: Infinity,
@@ -180,507 +301,1306 @@ let myVote = new Set();
 let heartbeatTimer = null;
 
 const $ = id => document.getElementById(id);
-const sections = ["home","lobby","setup","playing","secret","voting","hostVoting","results"];
+
+const sections = [
+  "home",
+  "lobby",
+  "setup",
+  "playing",
+  "secret",
+  "voting",
+  "hostVoting",
+  "results"
+];
 
 function show(id) {
-  sections.forEach(x => $(x).classList.toggle("hidden", x !== id));
+
+  sections.forEach(
+    x => $(x).classList.toggle(
+      "hidden",
+      x !== id
+    )
+  );
+
 }
 
 function setError(id, msg) {
-  $(id).innerHTML = msg ? '<div class="error">' + escapeHtml(msg) + '</div>' : "";
+
+  $(id).innerHTML = msg
+    ? '<div class="error">' +
+      escapeHtml(msg) +
+      '</div>'
+    : "";
+
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&':'&amp;',
-    '<':'&lt;',
-    '>':'&gt;',
-    '"':'&quot;',
-    "'":'&#039;'
-  }[c]));
+
+  return String(s).replace(
+    /[&<>"']/g,
+    c => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#039;'
+    }[c])
+  );
+
 }
 
 function sync(r) {
+
   room = r;
   isHost = r.host === me;
+
   render();
+
 }
 
 function render() {
+
   if (!room) return;
 
-  $("roomCode").textContent = room.code;
-  $("playerCount").textContent = room.playerCount + " / " + room.maxPlayers;
+  $("roomCode").textContent =
+    room.code;
+
+  $("playerCount").textContent =
+    room.playerCount +
+    " / " +
+    room.maxPlayers;
+
   $("imposterCount").textContent =
-    room.playerCount >= room.minPlayers ? room.imposterCount : "—";
+    room.playerCount >= room.minPlayers
+      ? room.imposterCount
+      : "—";
 
-  $("roleBadge").textContent = isHost ? "HOST / CONTROLLER" : "PLAYER";
-  $("roleBadge").className = "badge " + (isHost ? "hostbadge" : "");
+  $("roleBadge").textContent =
+    isHost
+      ? "HOST / CONTROLLER"
+      : "PLAYER";
 
-  $("playersList").innerHTML = room.players.map(p =>
-    "<li><span>" +
-    escapeHtml(p.name) +
-    (p.id === room.host ? " 👑" : "") +
-    (p.connected === false ? ' <span class="muted small">(reconnecting)</span>' : "") +
-    "</span>" +
-    (p.id === me ? '<span class="muted small">You</span>' : "") +
-    "</li>"
-  ).join("");
+  $("roleBadge").className =
+    "badge " +
+    (isHost ? "hostbadge" : "");
 
-  $("hostControls").classList.toggle("hidden", !isHost);
-  $("startBtn").disabled = !isHost || room.playerCount < room.minPlayers;
-  $("startBtn").textContent =
-    room.playerCount < room.minPlayers
-      ? "Waiting for " +
-        (room.minPlayers - room.playerCount) +
-        " more player" +
-        (room.minPlayers-room.playerCount===1?"":"s")
-      : "Start Game";
+  $("playersList").innerHTML =
+    room.players.map(p =>
 
-  if (room.phase === "lobby") {
-    show("lobby");
-    $("lobbyMessage").textContent = isHost
-      ? "You are the host. Wait for everyone to join, then click Start Game."
-      : "You have joined. Waiting for the host to start the game.";
-  } else if (room.phase === "setup") {
-    if (isHost) {
-      renderSetup();
-      show("setup");
-    } else {
-      show("lobby");
-      $("lobbyMessage").textContent =
-        "The host is entering the secret words. Please wait.";
-    }
-  } else if (room.phase === "playing") {
-    if (isHost) {
-      show("playing");
-      $("playingRole").textContent = "HOST / CONTROLLER";
-      $("playingMessage").textContent =
-        "All players have received their private words. Let them play the clue round, then open voting.";
+      "<li><span>" +
 
-      $("hostImposterPanel").classList.remove("hidden");
-      $("hostImposterList").innerHTML =
-        room.hostImposters && room.hostImposters.length
-          ? room.hostImposters.map(p =>
-              '<div class="success" style="margin-top:6px"><strong>' +
-              escapeHtml(p.name) +
-              '</strong> is an imposter.</div>'
-            ).join("")
-          : '<div class="muted">Imposter information is not available yet.</div>';
+      escapeHtml(p.name) +
 
-      $("openVotingBtn").classList.remove("hidden");
-    } else if (!secretVisible) {
-      $("hostImposterPanel").classList.add("hidden");
-      show("playing");
-      $("playingRole").textContent = "PLAYER";
-      $("playingMessage").textContent =
-        "Clue round is in progress. Wait for the host to open voting.";
-      $("openVotingBtn").classList.add("hidden");
-    }
-  } else if (room.phase === "voting") {
-    $("hostImposterPanel").classList.add("hidden");
+      (
+        p.id === room.host
+          ? " 👑"
+          : ""
+      ) +
 
-    if (isHost) {
-      show("hostVoting");
+      (
+        p.connected === false
+          ? ' <span class="muted small">(reconnecting)</span>'
+          : ""
+      ) +
 
-      const totalPlayers = room.playerCount - 1;
+      "</span>" +
 
-      $("hostVoteProgress").textContent =
-        room.votesSubmitted + " / " + totalPlayers + " players voted";
+      (
+        p.id === me
+          ? '<span class="muted small">You</span>'
+          : ""
+      ) +
 
-      $("revealBtn").disabled = !room.allVotesSubmitted;
+      "</li>"
 
-      $("revealError").innerHTML = room.allVotesSubmitted
-        ? '<div class="success">Everyone has voted. You can reveal the results.</div>'
-        : "";
-    } else {
-      show("voting");
-      renderVoting();
-    }
-  } else if (room.phase === "results") {
-    show("results");
+    ).join("");
 
-    $("playAgainBtn").classList.toggle(
+  $("hostControls")
+    .classList.toggle(
       "hidden",
       !isHost
     );
 
-    $("playAgainBtn").disabled = false;
+  $("startBtn").disabled =
+    !isHost ||
+    room.playerCount <
+    room.minPlayers;
+
+  $("startBtn").textContent =
+    room.playerCount <
+    room.minPlayers
+
+      ? "Waiting for " +
+        (
+          room.minPlayers -
+          room.playerCount
+        ) +
+        " more player" +
+        (
+          room.minPlayers -
+          room.playerCount === 1
+            ? ""
+            : "s"
+        )
+
+      : "Start Game";
+
+  if (room.phase === "lobby") {
+
+    show("lobby");
+
+    $("lobbyMessage").textContent =
+      isHost
+
+        ? "You are the host. Wait for everyone to join, then click Start Game."
+
+        : "You have joined. Waiting for the host to start the game.";
+
+  }
+
+  else if (room.phase === "setup") {
+
+    $("hostImposterPanel")
+      .classList.add("hidden");
+
+    if (isHost) {
+
+      renderSetup();
+      show("setup");
+
+    }
+
+    else {
+
+      show("lobby");
+
+      $("lobbyMessage").textContent =
+        "The host is entering the secret words. Please wait.";
+
+    }
+
+  }
+
+  else if (room.phase === "playing") {
+
+    if (isHost) {
+
+      show("playing");
+
+      $("playingRole").textContent =
+        "HOST / CONTROLLER";
+
+      $("playingMessage").textContent =
+        "All players have received their private words. Let them play the clue round, then open voting.";
+
+      /*
+       * THIS IS THE IMPORTANT PART.
+       *
+       * The server sends hostImposters only to the host.
+       * The host sees the imposter names immediately
+       * after the words are submitted.
+       */
+      $("hostImposterPanel")
+        .classList.remove("hidden");
+
+      $("hostImposterList").innerHTML =
+
+        room.hostImposters &&
+        room.hostImposters.length
+
+          ? room.hostImposters
+              .map(p =>
+
+                '<div class="success" style="margin-top:6px">' +
+
+                '<strong>' +
+                escapeHtml(p.name) +
+                '</strong> is an imposter.' +
+
+                '</div>'
+
+              )
+              .join("")
+
+          : '<div class="muted">Imposter information is not available yet.</div>';
+
+      $("openVotingBtn")
+        .classList.remove("hidden");
+
+    }
+
+    else if (!secretVisible) {
+
+      $("hostImposterPanel")
+        .classList.add("hidden");
+
+      show("playing");
+
+      $("playingRole").textContent =
+        "PLAYER";
+
+      $("playingMessage").textContent =
+        "Clue round is in progress. Wait for the host to open voting.";
+
+      $("openVotingBtn")
+        .classList.add("hidden");
+
+    }
+
+  }
+
+  else if (room.phase === "voting") {
+
+    $("hostImposterPanel")
+      .classList.add("hidden");
+
+    if (isHost) {
+
+      show("hostVoting");
+
+      const totalPlayers =
+        room.playerCount - 1;
+
+      $("hostVoteProgress").textContent =
+        room.votesSubmitted +
+        " / " +
+        totalPlayers +
+        " players voted";
+
+      $("revealBtn").disabled =
+        !room.allVotesSubmitted;
+
+      $("revealError").innerHTML =
+        room.allVotesSubmitted
+
+          ? '<div class="success">Everyone has voted. You can reveal the results.</div>'
+
+          : "";
+
+    }
+
+    else {
+
+      show("voting");
+
+      renderVoting();
+
+    }
+
+  }
+
+  else if (room.phase === "results") {
+
+    $("hostImposterPanel")
+      .classList.add("hidden");
+
+    show("results");
+
+    $("playAgainBtn")
+      .classList.toggle(
+        "hidden",
+        !isHost
+      );
+
+    $("startNewGameBtn")
+      .classList.toggle(
+        "hidden",
+        !isHost
+      );
+
+    $("playAgainBtn").disabled =
+      false;
+
+    $("startNewGameBtn").disabled =
+      false;
 
     $("playAgainMessage").textContent =
       isHost
+
         ? "Start another round using the same players."
+
         : "Waiting for the host to start another round.";
+
   }
+
 }
 
 function renderSetup() {
+
   $("setupSummary").textContent =
     room.playerCount +
     " players joined. There are " +
     room.imposterCount +
     " imposters. You are the host and are not part of the player game.";
 
-  $("imposterFields").innerHTML = "";
+  $("imposterFields").innerHTML =
+    "";
 
-  for (let i = 1; i <= room.imposterCount; i++) {
+  for (
+    let i = 1;
+    i <= room.imposterCount;
+    i++
+  ) {
+
     $("imposterFields").innerHTML +=
-      '<label>Imposter Word ' + i + '</label>' +
-      '<input id="imp' + i + '" placeholder="Different imposter word">';
+
+      '<label>Imposter Word ' +
+      i +
+      '</label>' +
+
+      '<input id="imp' +
+      i +
+      '" placeholder="Different imposter word">';
+
   }
+
 }
 
 function renderVoting() {
-  const required = room.imposterCount;
-  const hasVoted = room.hasVoted === true;
 
-  $("voteSummary").textContent = hasVoted
-    ? "✅ Your vote has been submitted. Waiting for the other players..."
-    : "Select exactly " +
-      required +
-      " player" +
-      (required > 1 ? "s" : "") +
-      ". Your vote stays private.";
+  const required =
+    room.imposterCount;
 
-  const players = room.players.filter(
-    p => p.id !== room.host && p.id !== me
-  );
+  const hasVoted =
+    room.hasVoted === true;
 
-  $("voteOptions").innerHTML = players.map(p =>
-    '<label class="voteRow">' +
+  $("voteSummary").textContent =
+
+    hasVoted
+
+      ? "✅ Your vote has been submitted. Waiting for the other players..."
+
+      : "Select exactly " +
+        required +
+        " player" +
+        (required > 1 ? "s" : "") +
+        ". Your vote stays private.";
+
+  const players =
+    room.players.filter(
+      p =>
+        p.id !== room.host &&
+        p.id !== me
+    );
+
+  $("voteOptions").innerHTML =
+
+    players.map(p =>
+
+      '<label class="voteRow">' +
+
       '<input type="checkbox" value="' +
       escapeHtml(p.id) +
       '"' +
-      (myVote.has(p.id) ? " checked" : "") +
-      (hasVoted ? " disabled" : "") +
-      '> <span>' +
-      escapeHtml(p.name) +
-      '</span>' +
-    '</label>'
-  ).join("");
 
-  $("submitVote").disabled = hasVoted;
-  $("voteError").innerHTML = "";
+      (
+        myVote.has(p.id)
+          ? " checked"
+          : ""
+      ) +
+
+      (
+        hasVoted
+          ? " disabled"
+          : ""
+      ) +
+
+      '> <span>' +
+
+      escapeHtml(p.name) +
+
+      '</span>' +
+
+      '</label>'
+
+    ).join("");
+
+  $("submitVote").disabled =
+    hasVoted;
+
+  $("voteError").innerHTML =
+    "";
 
   $("voteOptions")
     .querySelectorAll("input")
     .forEach(input => {
-      input.addEventListener("change", () => {
-        if (input.checked) {
-          if (myVote.size >= required) {
-            input.checked = false;
-            return;
+
+      input.addEventListener(
+        "change",
+        () => {
+
+          if (input.checked) {
+
+            if (
+              myVote.size >=
+              required
+            ) {
+
+              input.checked =
+                false;
+
+              return;
+
+            }
+
+            myVote.add(
+              input.value
+            );
+
           }
 
-          myVote.add(input.value);
-        } else {
-          myVote.delete(input.value);
+          else {
+
+            myVote.delete(
+              input.value
+            );
+
+          }
+
         }
-      });
+      );
+
     });
+
+}
+
+function resetToHome() {
+
+  room = null;
+  isHost = false;
+  secretVisible = false;
+  myVote = new Set();
+
+  clearGameSession();
+
+  $("name").value = "";
+  $("code").value = "";
+  $("homeError").innerHTML = "";
+
+  $("hostImposterPanel")
+    .classList.add("hidden");
+
+  show("home");
+
 }
 
 function saveGameSession(code, name) {
-  localStorage.setItem(GAME_KEY, code);
-  localStorage.setItem(NAME_KEY, name);
+
+  localStorage.setItem(
+    GAME_KEY,
+    code
+  );
+
+  localStorage.setItem(
+    NAME_KEY,
+    name
+  );
+
 }
 
 function clearGameSession() {
-  localStorage.removeItem(GAME_KEY);
-  localStorage.removeItem(NAME_KEY);
+
+  localStorage.removeItem(
+    GAME_KEY
+  );
+
+  localStorage.removeItem(
+    NAME_KEY
+  );
+
 }
 
 function restoreSession() {
-  const savedCode = localStorage.getItem(GAME_KEY);
 
-  if (!savedCode || !sessionId) return;
+  const savedCode =
+    localStorage.getItem(
+      GAME_KEY
+    );
+
+  if (
+    !savedCode ||
+    !sessionId
+  ) {
+    return;
+  }
 
   socket.emit(
     "restoreSession",
-    { sessionId, code: savedCode },
+
+    {
+      sessionId,
+      code: savedCode
+    },
+
     res => {
+
       if (!res.ok) {
-        // Do not trap the player on the home screen because of a stale
-        // saved game. They can simply join/create a new game.
-        clearGameSession();
+
+        resetToHome();
+
         return;
+
       }
 
       me = res.id;
+
       sync(res.room);
 
-      if (res.room.phase === "playing") {
-        // The server will also send secretWord immediately after restore.
-        secretVisible = false;
+      if (
+        res.room.phase ===
+        "playing"
+      ) {
+
+        secretVisible =
+          false;
+
       }
+
     }
+
   );
+
 }
 
 function startHeartbeat() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
 
-  // Lightweight application-level traffic. This is separate from
-  // Socket.IO's own connection heartbeat and helps keep the Render
-  // WebSocket receiving traffic during a quiet clue round.
-  heartbeatTimer = setInterval(() => {
-    if (socket.connected) {
-      socket.emit("heartbeat");
-    }
-  }, 20000);
-}
-
-$("createBtn").onclick = () => {
-  setError("homeError", "");
-
-  const name = $("name").value.trim();
-
-  socket.emit("createGame", name, sessionId, res => {
-    if (!res.ok) return setError("homeError", res.error);
-
-    me = res.id;
-    saveGameSession(res.code, name);
-    sync(res.room);
-  });
-};
-
-$("joinBtn").onclick = () => {
-  setError("homeError", "");
-
-  const name = $("name").value.trim();
-  const code = $("code").value.trim();
-
-  socket.emit(
-    "joinGame",
-    { name, code, sessionId },
-    res => {
-      if (!res.ok) return setError("homeError", res.error);
-
-      me = res.id;
-      saveGameSession(res.code, name);
-      sync(res.room);
-    }
-  );
-};
-
-$("startBtn").onclick = () => {
-  setError("setupError", "");
-
-  socket.emit("openSetup", room.code, res => {
-    if (!res.ok) return setError("setupError", res.error);
-    sync(res.room);
-  });
-};
-
-$("submitWords").onclick = () => {
-  setError("setupError", "");
-
-  const normalWord = $("normalWord").value.trim();
-  const imposterWords = [];
-
-  for (let i=1; i<=room.imposterCount; i++) {
-    imposterWords.push($("imp"+i).value.trim());
-  }
-
-  socket.emit(
-    "startGame",
-    { code:room.code, normalWord, imposterWords },
-    res => {
-      if (!res.ok) return setError("setupError", res.error);
-    }
-  );
-};
-
-$("openVotingBtn").onclick = () => {
-  socket.emit("openVoting", room.code, res => {
-    if (!res.ok) alert(res.error);
-  });
-};
-
-$("hideSecret").onclick = () => {
-  secretVisible = false;
-  show("playing");
-  $("playingRole").textContent = "PLAYER";
-  $("playingMessage").textContent =
-    "Clue round is in progress. Wait for the host to open voting.";
-};
-
-$("voteForm").addEventListener("submit", e => {
-  e.preventDefault();
-  setError("voteError", "");
-
-  const targets = [
-    ...$("voteOptions").querySelectorAll("input:checked")
-  ].map(x => x.value);
-
-  if (targets.length !== room.imposterCount) {
-    return setError(
-      "voteError",
-      "Select exactly " +
-      room.imposterCount +
-      " player" +
-      (room.imposterCount > 1 ? "s" : "") +
-      "."
+  if (heartbeatTimer) {
+    clearInterval(
+      heartbeatTimer
     );
   }
 
-  $("submitVote").disabled = true;
+  heartbeatTimer =
+    setInterval(
+      () => {
 
-  socket.emit(
-    "submitVote",
-    { code: room.code, targets: targets },
-    res => {
-      if (!res.ok) {
-        $("submitVote").disabled = false;
-        return setError("voteError", res.error);
+        if (
+          socket.connected
+        ) {
+
+          socket.emit(
+            "heartbeat"
+          );
+
+        }
+
+      },
+      20000
+    );
+
+}
+
+$("createBtn").onclick =
+  () => {
+
+    setError(
+      "homeError",
+      ""
+    );
+
+    const name =
+      $("name").value.trim();
+
+    socket.emit(
+      "createGame",
+      name,
+      sessionId,
+      res => {
+
+        if (!res.ok) {
+
+          return setError(
+            "homeError",
+            res.error
+          );
+
+        }
+
+        me = res.id;
+
+        saveGameSession(
+          res.code,
+          name
+        );
+
+        sync(res.room);
+
+      }
+    );
+
+  };
+
+$("joinBtn").onclick =
+  () => {
+
+    setError(
+      "homeError",
+      ""
+    );
+
+    const name =
+      $("name").value.trim();
+
+    const code =
+      $("code").value.trim();
+
+    socket.emit(
+      "joinGame",
+
+      {
+        name,
+        code,
+        sessionId
+      },
+
+      res => {
+
+        if (!res.ok) {
+
+          return setError(
+            "homeError",
+            res.error
+          );
+
+        }
+
+        me = res.id;
+
+        saveGameSession(
+          res.code,
+          name
+        );
+
+        sync(res.room);
+
       }
 
-      myVote = new Set(targets);
+    );
 
-      $("voteSummary").textContent =
-        "✅ Your vote has been submitted. Waiting for the other players...";
+  };
 
-      $("voteOptions")
-        .querySelectorAll("input")
-        .forEach(input => {
-          input.disabled = true;
-        });
+$("startBtn").onclick =
+  () => {
 
-      $("submitVote").disabled = true;
+    setError(
+      "setupError",
+      ""
+    );
+
+    socket.emit(
+      "openSetup",
+      room.code,
+      res => {
+
+        if (!res.ok) {
+
+          return setError(
+            "setupError",
+            res.error
+          );
+
+        }
+
+        sync(res.room);
+
+      }
+    );
+
+  };
+
+$("submitWords").onclick =
+  () => {
+
+    setError(
+      "setupError",
+      ""
+    );
+
+    const normalWord =
+      $("normalWord")
+        .value
+        .trim();
+
+    const imposterWords =
+      [];
+
+    for (
+      let i = 1;
+      i <= room.imposterCount;
+      i++
+    ) {
+
+      imposterWords.push(
+        $("imp" + i)
+          .value
+          .trim()
+      );
+
     }
-  );
-});
 
-$("playAgainBtn").onclick = () => {
-  $("playAgainBtn").disabled = true;
-  $("playAgainMessage").textContent =
-    "Starting another round...";
+    socket.emit(
+      "startGame",
 
-  socket.emit(
-    "playAgain",
-    room.code,
-    res => {
-      if (!res.ok) {
-        $("playAgainBtn").disabled = false;
-        $("playAgainMessage").textContent = res.error;
-        return;
+      {
+        code: room.code,
+        normalWord,
+        imposterWords
+      },
+
+      res => {
+
+        if (!res.ok) {
+
+          return setError(
+            "setupError",
+            res.error
+          );
+
+        }
+
       }
 
-      myVote = new Set();
-      secretVisible = false;
-      $("playAgainMessage").textContent = "";
-      sync(res.room);
+    );
+
+  };
+
+$("openVotingBtn").onclick =
+  () => {
+
+    socket.emit(
+      "openVoting",
+      room.code,
+      res => {
+
+        if (!res.ok) {
+
+          alert(
+            res.error
+          );
+
+        }
+
+      }
+    );
+
+  };
+
+$("hideSecret").onclick =
+  () => {
+
+    secretVisible =
+      false;
+
+    show("playing");
+
+    $("playingRole").textContent =
+      "PLAYER";
+
+    $("playingMessage").textContent =
+      "Clue round is in progress. Wait for the host to open voting.";
+
+  };
+
+$("voteForm")
+  .addEventListener(
+    "submit",
+    e => {
+
+      e.preventDefault();
+
+      setError(
+        "voteError",
+        ""
+      );
+
+      const targets = [
+
+        ...$("voteOptions")
+          .querySelectorAll(
+            "input:checked"
+          )
+
+      ].map(
+        x => x.value
+      );
+
+      if (
+        targets.length !==
+        room.imposterCount
+      ) {
+
+        return setError(
+
+          "voteError",
+
+          "Select exactly " +
+          room.imposterCount +
+          " player" +
+          (
+            room.imposterCount > 1
+              ? "s"
+              : ""
+          ) +
+          "."
+
+        );
+
+      }
+
+      $("submitVote")
+        .disabled = true;
+
+      socket.emit(
+
+        "submitVote",
+
+        {
+          code: room.code,
+          targets: targets
+        },
+
+        res => {
+
+          if (!res.ok) {
+
+            $("submitVote")
+              .disabled = false;
+
+            return setError(
+              "voteError",
+              res.error
+            );
+
+          }
+
+          myVote =
+            new Set(targets);
+
+          $("voteSummary")
+            .textContent =
+            "✅ Your vote has been submitted. Waiting for the other players...";
+
+          $("voteOptions")
+            .querySelectorAll(
+              "input"
+            )
+            .forEach(
+              input => {
+                input.disabled =
+                  true;
+              }
+            );
+
+          $("submitVote")
+            .disabled = true;
+
+        }
+
+      );
+
     }
   );
-};
 
-$("revealBtn").onclick = () => {
-  socket.emit("revealResults", room.code, res => {
-    if (!res.ok) {
-      $("revealError").innerHTML =
-        '<div class="error">' +
-        escapeHtml(res.error) +
-        '</div>';
+$("playAgainBtn").onclick =
+  () => {
+
+    $("playAgainBtn")
+      .disabled = true;
+
+    $("startNewGameBtn")
+      .disabled = true;
+
+    $("playAgainMessage")
+      .textContent =
+      "Starting another round...";
+
+    socket.emit(
+      "playAgain",
+      room.code,
+      res => {
+
+        if (!res.ok) {
+
+          $("playAgainBtn")
+            .disabled = false;
+
+          $("startNewGameBtn")
+            .disabled = false;
+
+          $("playAgainMessage")
+            .textContent =
+            res.error;
+
+          return;
+
+        }
+
+        myVote =
+          new Set();
+
+        secretVisible =
+          false;
+
+        $("playAgainMessage")
+          .textContent =
+          "";
+
+        sync(res.room);
+
+      }
+    );
+
+  };
+
+$("startNewGameBtn").onclick =
+  () => {
+
+    if (
+      !confirm(
+        "Start a completely new game? The current game will be closed for everyone."
+      )
+    ) {
+
+      return;
+
     }
-  });
-};
 
-socket.on("connect", () => {
-  startHeartbeat();
-  restoreSession();
-});
+    $("playAgainBtn")
+      .disabled = true;
 
-socket.on("disconnect", () => {
-  // Socket.IO will automatically try to reconnect.
-  // Keep the current UI/room state on screen while that happens.
-  if (room) {
-    const message =
-      room.phase === "playing"
-        ? "Connection interrupted. Reconnecting automatically…"
-        : "Connection interrupted. Reconnecting…";
+    $("startNewGameBtn")
+      .disabled = true;
 
-    if (room.phase === "playing" && !isHost) {
-      $("playingMessage").textContent = message;
+    socket.emit(
+      "startNewGame",
+      room.code,
+      res => {
+
+        if (!res.ok) {
+
+          $("playAgainBtn")
+            .disabled = false;
+
+          $("startNewGameBtn")
+            .disabled = false;
+
+          $("playAgainMessage")
+            .textContent =
+            res.error;
+
+          return;
+
+        }
+
+        resetToHome();
+
+      }
+    );
+
+  };
+
+$("revealBtn").onclick =
+  () => {
+
+    socket.emit(
+      "revealResults",
+      room.code,
+      res => {
+
+        if (!res.ok) {
+
+          $("revealError")
+            .innerHTML =
+
+            '<div class="error">' +
+            escapeHtml(res.error) +
+            '</div>';
+
+        }
+
+      }
+    );
+
+  };
+
+socket.on(
+  "connect",
+  () => {
+
+    startHeartbeat();
+    restoreSession();
+
+  }
+);
+
+socket.on(
+  "disconnect",
+  () => {
+
+    /*
+     * Socket.IO automatically tries to reconnect.
+     * We do not reload the page.
+     */
+
+    if (room) {
+
+      const message =
+        room.phase === "playing"
+
+          ? "Connection interrupted. Reconnecting automatically…"
+
+          : "Connection interrupted. Reconnecting…";
+
+      if (
+        room.phase === "playing" &&
+        !isHost
+      ) {
+
+        $("playingMessage")
+          .textContent =
+          message;
+
+      }
+
     }
+
   }
-});
+);
 
-socket.on("connect_error", () => {
-  // No redirect/reload. Socket.IO will continue its automatic
-  // reconnection attempts.
-});
+socket.on(
+  "connect_error",
+  () => {
 
-socket.on("room", sync);
+    /*
+     * No redirect/reload.
+     * Socket.IO continues automatic
+     * reconnection attempts.
+     */
 
-socket.on("secretWord", data => {
-  secretVisible = true;
-  $("secretWord").textContent = data.word;
-  show("secret");
-});
-
-socket.on("results", result => {
-  show("results");
-
-  $("playAgainBtn").classList.toggle("hidden", !isHost);
-  $("playAgainBtn").disabled = false;
-  $("playAgainMessage").textContent = isHost
-    ? "Start another round using the same players."
-    : "Waiting for the host to start another round.";
-
-  $("resultsSummary").textContent =
-    result.playerCount +
-    " players voted. There were " +
-    result.imposterCount +
-    " imposters.";
-
-  const imposters = result.players.filter(p => p.isImposter);
-
-  $("impostersResult").innerHTML = imposters.map(p =>
-    '<div class="success"><strong>' +
-    escapeHtml(p.name) +
-    '</strong> was an imposter.</div>'
-  ).join("");
-
-  $("resultsTable").innerHTML = result.players
-    .sort((a,b)=>b.votes-a.votes)
-    .map(p =>
-      '<div class="resultRow"><span>' +
-      escapeHtml(p.name) +
-      '</span><strong>' +
-      p.votes +
-      ' vote' +
-      (p.votes===1?'':'s') +
-      '</strong><span>' +
-      (p.isImposter ? "IMPOSTER" : "Player") +
-      '</span></div>'
-    ).join("");
-
-  $("wordsResult").innerHTML =
-    "<div><strong>Normal:</strong> " +
-    escapeHtml(result.normalWord) +
-    "</div>" +
-    result.imposterWords.map((w,i) =>
-      "<div><strong>Imposter " +
-      (i+1) +
-      ":</strong> " +
-      escapeHtml(w) +
-      "</div>"
-    ).join("");
-});
-
-socket.on("hostChanged", () => {
-  if (room) {
-    room.host = me;
-    isHost = true;
-    sync(room);
   }
-});
+);
 
-socket.on("gameEnded", msg => {
-  clearGameSession();
-  alert(msg);
-  location.reload();
-});
+socket.on(
+  "room",
+  sync
+);
+
+socket.on(
+  "secretWord",
+  data => {
+
+    secretVisible =
+      true;
+
+    $("secretWord")
+      .textContent =
+      data.word;
+
+    show("secret");
+
+  }
+);
+
+socket.on(
+  "results",
+  result => {
+
+    show("results");
+
+    $("playAgainBtn")
+      .classList.toggle(
+        "hidden",
+        !isHost
+      );
+
+    $("startNewGameBtn")
+      .classList.toggle(
+        "hidden",
+        !isHost
+      );
+
+    $("playAgainBtn")
+      .disabled = false;
+
+    $("startNewGameBtn")
+      .disabled = false;
+
+    $("playAgainMessage")
+      .textContent =
+      isHost
+
+        ? "Start another round using the same players."
+
+        : "Waiting for the host to start another round.";
+
+    $("resultsSummary")
+      .textContent =
+
+      result.playerCount +
+      " players voted. There were " +
+      result.imposterCount +
+      " imposters.";
+
+    const imposters =
+      result.players.filter(
+        p => p.isImposter
+      );
+
+    $("impostersResult")
+      .innerHTML =
+
+      imposters.map(
+        p =>
+
+          '<div class="success">' +
+
+          '<strong>' +
+          escapeHtml(p.name) +
+          '</strong> was an imposter.' +
+
+          '</div>'
+
+      ).join("");
+
+    $("resultsTable")
+      .innerHTML =
+
+      result.players
+
+        .sort(
+          (a,b) =>
+            b.votes -
+            a.votes
+        )
+
+        .map(
+          p =>
+
+            '<div class="resultRow">' +
+
+            '<span>' +
+            escapeHtml(p.name) +
+            '</span>' +
+
+            '<strong>' +
+            p.votes +
+            ' vote' +
+            (
+              p.votes === 1
+                ? ''
+                : 's'
+            ) +
+            '</strong>' +
+
+            '<span>' +
+            (
+              p.isImposter
+                ? "IMPOSTER"
+                : "Player"
+            ) +
+            '</span>' +
+
+            '</div>'
+
+        ).join("");
+
+    $("wordsResult")
+      .innerHTML =
+
+      "<div><strong>Normal:</strong> " +
+      escapeHtml(
+        result.normalWord
+      ) +
+      "</div>" +
+
+      result.imposterWords
+
+        .map(
+          (w,i) =>
+
+            "<div><strong>Imposter " +
+            (i+1) +
+            ":</strong> " +
+            escapeHtml(w) +
+            "</div>"
+
+        )
+
+        .join("");
+
+  }
+);
+
+socket.on(
+  "roundStarting",
+  message => {
+
+    secretVisible =
+      false;
+
+    myVote =
+      new Set();
+
+    show("lobby");
+
+    $("lobbyMessage")
+      .textContent =
+      message;
+
+  }
+);
+
+socket.on(
+  "newGameStarted",
+  message => {
+
+    const wasHost =
+      isHost;
+
+    resetToHome();
+
+    if (!wasHost) {
+
+      alert(message);
+
+    }
+
+  }
+);
+
+socket.on(
+  "hostChanged",
+  () => {
+
+    if (room) {
+
+      room.host =
+        me;
+
+      isHost =
+        true;
+
+      sync(room);
+
+    }
+
+  }
+);
+
+socket.on(
+  "gameEnded",
+  msg => {
+
+    clearGameSession();
+
+    alert(msg);
+
+    location.reload();
+
+  }
+);
+
 </script>
+
 </body>
 </html>
