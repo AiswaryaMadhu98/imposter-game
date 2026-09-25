@@ -132,6 +132,14 @@
     <div id="resultsTable"></div>
     <h3>Words</h3>
     <div id="wordsResult"></div>
+
+    <div class="actions" style="margin-top:20px">
+      <button id="playAgainBtn" class="hidden">
+        Play Another Round
+      </button>
+    </div>
+
+    <div id="playAgainMessage" class="muted small" style="margin-top:10px"></div>
   </section>
 </div>
 
@@ -264,17 +272,22 @@ function render() {
         : "";
     } else {
       show("voting");
-
-      if (room.hasVoted) {
-        $("voteSummary").textContent =
-          "Your vote has been submitted. Waiting for the other players...";
-        $("submitVote").disabled = true;
-      } else {
-        renderVoting();
-      }
+      renderVoting();
     }
   } else if (room.phase === "results") {
     show("results");
+
+    $("playAgainBtn").classList.toggle(
+      "hidden",
+      !isHost
+    );
+
+    $("playAgainBtn").disabled = false;
+
+    $("playAgainMessage").textContent =
+      isHost
+        ? "Start another round using the same players."
+        : "Waiting for the host to start another round.";
   }
 }
 
@@ -296,42 +309,52 @@ function renderSetup() {
 
 function renderVoting() {
   const required = room.imposterCount;
+  const hasVoted = room.hasVoted === true;
 
-  $("voteSummary").textContent =
-    "Select exactly " +
-    required +
-    " player" +
-    (required > 1 ? "s" : "") +
-    ". Your vote stays private.";
+  $("voteSummary").textContent = hasVoted
+    ? "✅ Your vote has been submitted. Waiting for the other players..."
+    : "Select exactly " +
+      required +
+      " player" +
+      (required > 1 ? "s" : "") +
+      ". Your vote stays private.";
 
   const players = room.players.filter(
     p => p.id !== room.host && p.id !== me
   );
 
   $("voteOptions").innerHTML = players.map(p =>
-    '<label class="voteRow"><input type="checkbox" value="' +
-    escapeHtml(p.id) +
-    '"> <span>' +
-    escapeHtml(p.name) +
-    '</span></label>'
+    '<label class="voteRow">' +
+      '<input type="checkbox" value="' +
+      escapeHtml(p.id) +
+      '"' +
+      (myVote.has(p.id) ? " checked" : "") +
+      (hasVoted ? " disabled" : "") +
+      '> <span>' +
+      escapeHtml(p.name) +
+      '</span>' +
+    '</label>'
   ).join("");
 
-  $("submitVote").disabled = false;
+  $("submitVote").disabled = hasVoted;
   $("voteError").innerHTML = "";
 
-  $("voteOptions").querySelectorAll("input").forEach(input => {
-    input.addEventListener("change", () => {
-      if (input.checked) {
-        if (myVote.size >= required) {
-          input.checked = false;
-          return;
+  $("voteOptions")
+    .querySelectorAll("input")
+    .forEach(input => {
+      input.addEventListener("change", () => {
+        if (input.checked) {
+          if (myVote.size >= required) {
+            input.checked = false;
+            return;
+          }
+
+          myVote.add(input.value);
+        } else {
+          myVote.delete(input.value);
         }
-        myVote.add(input.value);
-      } else {
-        myVote.delete(input.value);
-      }
+      });
     });
-  });
 }
 
 function saveGameSession(code, name) {
@@ -482,22 +505,51 @@ $("voteForm").addEventListener("submit", e => {
 
   socket.emit(
     "submitVote",
-    { code: room.code, targets },
+    { code: room.code, targets: targets },
     res => {
       if (!res.ok) {
         $("submitVote").disabled = false;
         return setError("voteError", res.error);
       }
 
-      $("voteSummary").textContent =
-        "Your vote has been submitted. Waiting for the other players...";
+      myVote = new Set(targets);
 
-      $("voteOptions").querySelectorAll("input").forEach(
-        x => x.disabled = true
-      );
+      $("voteSummary").textContent =
+        "✅ Your vote has been submitted. Waiting for the other players...";
+
+      $("voteOptions")
+        .querySelectorAll("input")
+        .forEach(input => {
+          input.disabled = true;
+        });
+
+      $("submitVote").disabled = true;
     }
   );
 });
+
+$("playAgainBtn").onclick = () => {
+  $("playAgainBtn").disabled = true;
+  $("playAgainMessage").textContent =
+    "Starting another round...";
+
+  socket.emit(
+    "playAgain",
+    room.code,
+    res => {
+      if (!res.ok) {
+        $("playAgainBtn").disabled = false;
+        $("playAgainMessage").textContent = res.error;
+        return;
+      }
+
+      myVote = new Set();
+      secretVisible = false;
+      $("playAgainMessage").textContent = "";
+      sync(res.room);
+    }
+  );
+};
 
 $("revealBtn").onclick = () => {
   socket.emit("revealResults", room.code, res => {
@@ -545,6 +597,12 @@ socket.on("secretWord", data => {
 
 socket.on("results", result => {
   show("results");
+
+  $("playAgainBtn").classList.toggle("hidden", !isHost);
+  $("playAgainBtn").disabled = false;
+  $("playAgainMessage").textContent = isHost
+    ? "Start another round using the same players."
+    : "Waiting for the host to start another round.";
 
   $("resultsSummary").textContent =
     result.playerCount +
