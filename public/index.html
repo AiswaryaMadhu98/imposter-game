@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -138,12 +137,30 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const socket = io();
-let me = null;
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000
+});
+
+const SESSION_KEY = "imposterSessionId";
+const GAME_KEY = "imposterGameCode";
+const NAME_KEY = "imposterPlayerName";
+
+let sessionId = localStorage.getItem(SESSION_KEY);
+
+if (!sessionId) {
+  sessionId = crypto.randomUUID();
+  localStorage.setItem(SESSION_KEY, sessionId);
+}
+
+let me = sessionId;
 let room = null;
 let isHost = false;
 let secretVisible = false;
 let myVote = new Set();
+let heartbeatTimer = null;
 
 const $ = id => document.getElementById(id);
 const sections = ["home","lobby","setup","playing","secret","voting","hostVoting","results"];
@@ -157,7 +174,13 @@ function setError(id, msg) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#039;'
+  }[c]));
 }
 
 function sync(r) {
@@ -168,22 +191,34 @@ function sync(r) {
 
 function render() {
   if (!room) return;
+
   $("roomCode").textContent = room.code;
   $("playerCount").textContent = room.playerCount + " / " + room.maxPlayers;
-  $("imposterCount").textContent = room.playerCount >= room.minPlayers ? room.imposterCount : "—";
+  $("imposterCount").textContent =
+    room.playerCount >= room.minPlayers ? room.imposterCount : "—";
+
   $("roleBadge").textContent = isHost ? "HOST / CONTROLLER" : "PLAYER";
   $("roleBadge").className = "badge " + (isHost ? "hostbadge" : "");
 
   $("playersList").innerHTML = room.players.map(p =>
-    "<li><span>" + escapeHtml(p.name) + (p.id === room.host ? " 👑" : "") + "</span>" +
-    (p.id === me ? '<span class="muted small">You</span>' : "") + "</li>"
+    "<li><span>" +
+    escapeHtml(p.name) +
+    (p.id === room.host ? " 👑" : "") +
+    (p.connected === false ? ' <span class="muted small">(reconnecting)</span>' : "") +
+    "</span>" +
+    (p.id === me ? '<span class="muted small">You</span>' : "") +
+    "</li>"
   ).join("");
 
   $("hostControls").classList.toggle("hidden", !isHost);
   $("startBtn").disabled = !isHost || room.playerCount < room.minPlayers;
-  $("startBtn").textContent = room.playerCount < room.minPlayers
-    ? "Waiting for " + (room.minPlayers - room.playerCount) + " more player" + (room.minPlayers-room.playerCount===1?"":"s")
-    : "Start Game";
+  $("startBtn").textContent =
+    room.playerCount < room.minPlayers
+      ? "Waiting for " +
+        (room.minPlayers - room.playerCount) +
+        " more player" +
+        (room.minPlayers-room.playerCount===1?"":"s")
+      : "Start Game";
 
   if (room.phase === "lobby") {
     show("lobby");
@@ -196,44 +231,62 @@ function render() {
       show("setup");
     } else {
       show("lobby");
-      $("lobbyMessage").textContent = "The host is entering the secret words. Please wait.";
+      $("lobbyMessage").textContent =
+        "The host is entering the secret words. Please wait.";
     }
   } else if (room.phase === "playing") {
     if (isHost) {
       show("playing");
       $("playingRole").textContent = "HOST / CONTROLLER";
-      $("playingMessage").textContent = "All players have received their private words. Let them play the clue round, then open voting.";
+      $("playingMessage").textContent =
+        "All players have received their private words. Let them play the clue round, then open voting.";
       $("openVotingBtn").classList.remove("hidden");
     } else if (!secretVisible) {
       show("playing");
       $("playingRole").textContent = "PLAYER";
-      $("playingMessage").textContent = "Clue round is in progress. Wait for the host to open voting.";
+      $("playingMessage").textContent =
+        "Clue round is in progress. Wait for the host to open voting.";
       $("openVotingBtn").classList.add("hidden");
     }
   } else if (room.phase === "voting") {
     if (isHost) {
       show("hostVoting");
+
       const totalPlayers = room.playerCount - 1;
+
       $("hostVoteProgress").textContent =
         room.votesSubmitted + " / " + totalPlayers + " players voted";
+
       $("revealBtn").disabled = !room.allVotesSubmitted;
+
       $("revealError").innerHTML = room.allVotesSubmitted
         ? '<div class="success">Everyone has voted. You can reveal the results.</div>'
         : "";
     } else {
       show("voting");
-      renderVoting();
+
+      if (room.hasVoted) {
+        $("voteSummary").textContent =
+          "Your vote has been submitted. Waiting for the other players...";
+        $("submitVote").disabled = true;
+      } else {
+        renderVoting();
+      }
     }
   } else if (room.phase === "results") {
-    if (isHost) show("results");
-    else show("results");
+    show("results");
   }
 }
 
 function renderSetup() {
   $("setupSummary").textContent =
-    room.playerCount + " players joined. There are " + room.imposterCount + " imposters. You are the host and are not part of the player game.";
+    room.playerCount +
+    " players joined. There are " +
+    room.imposterCount +
+    " imposters. You are the host and are not part of the player game.";
+
   $("imposterFields").innerHTML = "";
+
   for (let i = 1; i <= room.imposterCount; i++) {
     $("imposterFields").innerHTML +=
       '<label>Imposter Word ' + i + '</label>' +
@@ -243,13 +296,24 @@ function renderSetup() {
 
 function renderVoting() {
   const required = room.imposterCount;
-  $("voteSummary").textContent =
-    "Select exactly " + required + " player" + (required > 1 ? "s" : "") + ". Your vote stays private.";
 
-  const players = room.players.filter(p => p.id !== room.host && p.id !== me);
+  $("voteSummary").textContent =
+    "Select exactly " +
+    required +
+    " player" +
+    (required > 1 ? "s" : "") +
+    ". Your vote stays private.";
+
+  const players = room.players.filter(
+    p => p.id !== room.host && p.id !== me
+  );
+
   $("voteOptions").innerHTML = players.map(p =>
-    '<label class="voteRow"><input type="checkbox" value="' + escapeHtml(p.id) + '"> <span>' +
-    escapeHtml(p.name) + '</span></label>'
+    '<label class="voteRow"><input type="checkbox" value="' +
+    escapeHtml(p.id) +
+    '"> <span>' +
+    escapeHtml(p.name) +
+    '</span></label>'
   ).join("");
 
   $("submitVote").disabled = false;
@@ -270,27 +334,92 @@ function renderVoting() {
   });
 }
 
+function saveGameSession(code, name) {
+  localStorage.setItem(GAME_KEY, code);
+  localStorage.setItem(NAME_KEY, name);
+}
+
+function clearGameSession() {
+  localStorage.removeItem(GAME_KEY);
+  localStorage.removeItem(NAME_KEY);
+}
+
+function restoreSession() {
+  const savedCode = localStorage.getItem(GAME_KEY);
+
+  if (!savedCode || !sessionId) return;
+
+  socket.emit(
+    "restoreSession",
+    { sessionId, code: savedCode },
+    res => {
+      if (!res.ok) {
+        // Do not trap the player on the home screen because of a stale
+        // saved game. They can simply join/create a new game.
+        clearGameSession();
+        return;
+      }
+
+      me = res.id;
+      sync(res.room);
+
+      if (res.room.phase === "playing") {
+        // The server will also send secretWord immediately after restore.
+        secretVisible = false;
+      }
+    }
+  );
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+
+  // Lightweight application-level traffic. This is separate from
+  // Socket.IO's own connection heartbeat and helps keep the Render
+  // WebSocket receiving traffic during a quiet clue round.
+  heartbeatTimer = setInterval(() => {
+    if (socket.connected) {
+      socket.emit("heartbeat");
+    }
+  }, 20000);
+}
+
 $("createBtn").onclick = () => {
-  setError("homeError","");
+  setError("homeError", "");
+
   const name = $("name").value.trim();
-  socket.emit("createGame", name, res => {
+
+  socket.emit("createGame", name, sessionId, res => {
     if (!res.ok) return setError("homeError", res.error);
+
     me = res.id;
+    saveGameSession(res.code, name);
     sync(res.room);
   });
 };
 
 $("joinBtn").onclick = () => {
-  setError("homeError","");
-  socket.emit("joinGame", {name:$("name").value.trim(), code:$("code").value.trim()}, res => {
-    if (!res.ok) return setError("homeError", res.error);
-    me = res.id;
-    sync(res.room);
-  });
+  setError("homeError", "");
+
+  const name = $("name").value.trim();
+  const code = $("code").value.trim();
+
+  socket.emit(
+    "joinGame",
+    { name, code, sessionId },
+    res => {
+      if (!res.ok) return setError("homeError", res.error);
+
+      me = res.id;
+      saveGameSession(res.code, name);
+      sync(res.room);
+    }
+  );
 };
 
 $("startBtn").onclick = () => {
-  setError("setupError","");
+  setError("setupError", "");
+
   socket.emit("openSetup", room.code, res => {
     if (!res.ok) return setError("setupError", res.error);
     sync(res.room);
@@ -298,13 +427,22 @@ $("startBtn").onclick = () => {
 };
 
 $("submitWords").onclick = () => {
-  setError("setupError","");
+  setError("setupError", "");
+
   const normalWord = $("normalWord").value.trim();
   const imposterWords = [];
-  for (let i=1; i<=room.imposterCount; i++) imposterWords.push($("imp"+i).value.trim());
-  socket.emit("startGame", {code:room.code, normalWord, imposterWords}, res => {
-    if (!res.ok) return setError("setupError", res.error);
-  });
+
+  for (let i=1; i<=room.imposterCount; i++) {
+    imposterWords.push($("imp"+i).value.trim());
+  }
+
+  socket.emit(
+    "startGame",
+    { code:room.code, normalWord, imposterWords },
+    res => {
+      if (!res.ok) return setError("setupError", res.error);
+    }
+  );
 };
 
 $("openVotingBtn").onclick = () => {
@@ -317,41 +455,85 @@ $("hideSecret").onclick = () => {
   secretVisible = false;
   show("playing");
   $("playingRole").textContent = "PLAYER";
-  $("playingMessage").textContent = "Clue round is in progress. Wait for the host to open voting.";
+  $("playingMessage").textContent =
+    "Clue round is in progress. Wait for the host to open voting.";
 };
 
 $("voteForm").addEventListener("submit", e => {
   e.preventDefault();
   setError("voteError", "");
 
-  const targets = [...$("voteOptions").querySelectorAll("input:checked")].map(x => x.value);
+  const targets = [
+    ...$("voteOptions").querySelectorAll("input:checked")
+  ].map(x => x.value);
 
   if (targets.length !== room.imposterCount) {
     return setError(
       "voteError",
-      "Select exactly " + room.imposterCount + " player" + (room.imposterCount > 1 ? "s" : "") + "."
+      "Select exactly " +
+      room.imposterCount +
+      " player" +
+      (room.imposterCount > 1 ? "s" : "") +
+      "."
     );
   }
 
   $("submitVote").disabled = true;
 
-  socket.emit("submitVote", { code: room.code, targets }, res => {
-    if (!res.ok) {
-      $("submitVote").disabled = false;
-      return setError("voteError", res.error);
-    }
+  socket.emit(
+    "submitVote",
+    { code: room.code, targets },
+    res => {
+      if (!res.ok) {
+        $("submitVote").disabled = false;
+        return setError("voteError", res.error);
+      }
 
-    $("voteSummary").textContent =
-      "Your vote has been submitted. Waiting for the other players...";
-    $("voteOptions").querySelectorAll("input").forEach(x => x.disabled = true);
-  });
+      $("voteSummary").textContent =
+        "Your vote has been submitted. Waiting for the other players...";
+
+      $("voteOptions").querySelectorAll("input").forEach(
+        x => x.disabled = true
+      );
+    }
+  );
 });
 
 $("revealBtn").onclick = () => {
   socket.emit("revealResults", room.code, res => {
-    if (!res.ok) $("revealError").innerHTML = '<div class="error">'+escapeHtml(res.error)+'</div>';
+    if (!res.ok) {
+      $("revealError").innerHTML =
+        '<div class="error">' +
+        escapeHtml(res.error) +
+        '</div>';
+    }
   });
 };
+
+socket.on("connect", () => {
+  startHeartbeat();
+  restoreSession();
+});
+
+socket.on("disconnect", () => {
+  // Socket.IO will automatically try to reconnect.
+  // Keep the current UI/room state on screen while that happens.
+  if (room) {
+    const message =
+      room.phase === "playing"
+        ? "Connection interrupted. Reconnecting automatically…"
+        : "Connection interrupted. Reconnecting…";
+
+    if (room.phase === "playing" && !isHost) {
+      $("playingMessage").textContent = message;
+    }
+  }
+});
+
+socket.on("connect_error", () => {
+  // No redirect/reload. Socket.IO will continue its automatic
+  // reconnection attempts.
+});
 
 socket.on("room", sync);
 
@@ -363,26 +545,58 @@ socket.on("secretWord", data => {
 
 socket.on("results", result => {
   show("results");
-  $("resultsSummary").textContent = result.playerCount + " players voted. There were " + result.imposterCount + " imposters.";
+
+  $("resultsSummary").textContent =
+    result.playerCount +
+    " players voted. There were " +
+    result.imposterCount +
+    " imposters.";
+
   const imposters = result.players.filter(p => p.isImposter);
-  $("impostersResult").innerHTML = imposters.map(p => '<div class="success"><strong>'+escapeHtml(p.name)+'</strong> was an imposter.</div>').join("");
+
+  $("impostersResult").innerHTML = imposters.map(p =>
+    '<div class="success"><strong>' +
+    escapeHtml(p.name) +
+    '</strong> was an imposter.</div>'
+  ).join("");
+
   $("resultsTable").innerHTML = result.players
     .sort((a,b)=>b.votes-a.votes)
-    .map(p => '<div class="resultRow"><span>'+escapeHtml(p.name)+'</span><strong>'+p.votes+' vote'+(p.votes===1?'':'s')+'</strong><span>'+ (p.isImposter ? "IMPOSTER" : "Player") +'</span></div>').join("");
+    .map(p =>
+      '<div class="resultRow"><span>' +
+      escapeHtml(p.name) +
+      '</span><strong>' +
+      p.votes +
+      ' vote' +
+      (p.votes===1?'':'s') +
+      '</strong><span>' +
+      (p.isImposter ? "IMPOSTER" : "Player") +
+      '</span></div>'
+    ).join("");
+
   $("wordsResult").innerHTML =
-    "<div><strong>Normal:</strong> "+escapeHtml(result.normalWord)+"</div>" +
-    result.imposterWords.map((w,i)=>"<div><strong>Imposter "+(i+1)+":</strong> "+escapeHtml(w)+"</div>").join("");
+    "<div><strong>Normal:</strong> " +
+    escapeHtml(result.normalWord) +
+    "</div>" +
+    result.imposterWords.map((w,i) =>
+      "<div><strong>Imposter " +
+      (i+1) +
+      ":</strong> " +
+      escapeHtml(w) +
+      "</div>"
+    ).join("");
 });
 
 socket.on("hostChanged", () => {
-  // Server only transfers host while still in the lobby.
   if (room) {
     room.host = me;
+    isHost = true;
     sync(room);
   }
 });
 
 socket.on("gameEnded", msg => {
+  clearGameSession();
   alert(msg);
   location.reload();
 });
