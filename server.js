@@ -6,7 +6,6 @@ const crypto = require("crypto");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
 app.use(express.static("public"));
 
 const rooms = new Map();
@@ -14,17 +13,12 @@ const disconnectTimers = new Map();
 
 const MAX_PLAYERS = 35;
 const MIN_PLAYERS = 3;
-
-// Keep disconnected players in the game for 2 minutes.
 const RECONNECT_GRACE_MS = 2 * 60 * 1000;
 
 function makeCode() {
   let code;
-
-  do {
-    code = crypto.randomBytes(3).toString("hex").toUpperCase();
-  } while (rooms.has(code));
-
+  do code = crypto.randomBytes(3).toString("hex").toUpperCase();
+  while (rooms.has(code));
   return code;
 }
 
@@ -38,11 +32,6 @@ function imposterCount(n) {
   return 3;
 }
 
-/*
- * Return room information that is safe to send to the browser.
- *
- * viewerId is important because hasVoted is different for every player.
- */
 function publicRoom(room, viewerId = null) {
   return {
     code: room.code,
@@ -66,32 +55,26 @@ function publicRoom(room, viewerId = null) {
 
     votesSubmitted: room.votes.size,
 
-    // Host does not vote, therefore playerCount - 1.
     allVotesSubmitted:
       room.votes.size === Math.max(room.players.size - 1, 0) &&
       room.players.size > 1,
 
     revealed: room.revealed,
 
-    // This is specific to the current player.
     hasVoted: viewerId
       ? room.votes.has(viewerId)
       : false
   };
 }
 
-/*
- * Send each connected player their own room state.
- *
- * IMPORTANT:
- * We cannot broadcast one common room object because
- * hasVoted is different for each player.
- */
 function emitRoom(room) {
+  // Send each player their own room state.
+  // hasVoted is player-specific.
   for (const player of room.players.values()) {
     if (!player.connected) continue;
 
-    const playerSocket = io.sockets.sockets.get(player.socketId);
+    const playerSocket =
+      io.sockets.sockets.get(player.socketId);
 
     if (playerSocket) {
       playerSocket.emit(
@@ -120,9 +103,6 @@ function clearDisconnectTimer(playerId) {
   }
 }
 
-/*
- * Send a player's secret word.
- */
 function sendSecretWord(room, playerId) {
   const player = room.players.get(playerId);
 
@@ -134,7 +114,8 @@ function sendSecretWord(room, playerId) {
     return;
   }
 
-  const socket = io.sockets.sockets.get(player.socketId);
+  const socket =
+    io.sockets.sockets.get(player.socketId);
 
   if (!socket) return;
 
@@ -145,9 +126,6 @@ function sendSecretWord(room, playerId) {
   });
 }
 
-/*
- * Send results to one player.
- */
 function sendResults(room, playerId) {
   if (!room.result) return;
 
@@ -155,16 +133,14 @@ function sendResults(room, playerId) {
 
   if (!player) return;
 
-  const socket = io.sockets.sockets.get(player.socketId);
+  const socket =
+    io.sockets.sockets.get(player.socketId);
 
   if (socket) {
     socket.emit("results", room.result);
   }
 }
 
-/*
- * Remove a player after reconnect grace period expires.
- */
 function removePlayer(room, playerId, reason = null) {
   const player = room.players.get(playerId);
 
@@ -184,10 +160,6 @@ function removePlayer(room, playerId, reason = null) {
   const wasHost = room.host === playerId;
 
   if (wasHost) {
-    /*
-     * If host leaves during an active game and doesn't reconnect,
-     * end the game.
-     */
     if (room.phase !== "lobby") {
       io.to(room.code).emit(
         "gameEnded",
@@ -198,14 +170,11 @@ function removePlayer(room, playerId, reason = null) {
       return;
     }
 
-    /*
-     * If host leaves while still in lobby,
-     * transfer host to another player.
-     */
     room.host = [...room.players.keys()][0];
     room.phase = "lobby";
 
-    const newHost = room.players.get(room.host);
+    const newHost =
+      room.players.get(room.host);
 
     if (newHost) {
       const newHostSocket =
@@ -220,20 +189,19 @@ function removePlayer(room, playerId, reason = null) {
   emitRoom(room);
 }
 
-/*
- * Give disconnected players time to reconnect.
- */
 function scheduleDisconnectRemoval(room, playerId) {
   clearDisconnectTimer(playerId);
 
   const timer = setTimeout(() => {
     disconnectTimers.delete(playerId);
 
-    const currentRoom = rooms.get(room.code);
+    const currentRoom =
+      rooms.get(room.code);
 
     if (!currentRoom) return;
 
-    const player = currentRoom.players.get(playerId);
+    const player =
+      currentRoom.players.get(playerId);
 
     if (!player || player.connected) return;
 
@@ -249,17 +217,8 @@ function scheduleDisconnectRemoval(room, playerId) {
   disconnectTimers.set(playerId, timer);
 }
 
-
-/*
- * SOCKET.IO
- */
 io.on("connection", socket => {
 
-  /*
-   * Lightweight heartbeat.
-   *
-   * The browser sends this every 20 seconds during the game.
-   */
   socket.on("heartbeat", cb => {
     if (typeof cb === "function") {
       cb({
@@ -269,21 +228,22 @@ io.on("connection", socket => {
     }
   });
 
-
-  /*
-   * RESTORE PREVIOUS SESSION
-   */
   socket.on(
     "restoreSession",
     ({ sessionId, code }, cb) => {
 
-      sessionId = String(sessionId || "").trim();
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      sessionId =
+        String(sessionId || "").trim();
+
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
       const room = rooms.get(code);
-      const player = room?.players.get(sessionId);
+
+      const player =
+        room?.players.get(sessionId);
 
       if (!room || !player) {
         return error(
@@ -312,21 +272,14 @@ io.on("connection", socket => {
         room: restoredRoom
       });
 
-      socket.emit("room", restoredRoom);
+      socket.emit(
+        "room",
+        restoredRoom
+      );
 
-      /*
-       * If player reconnects during clue round,
-       * send their secret word again.
-       */
       if (room.phase === "playing") {
         sendSecretWord(room, sessionId);
-      }
-
-      /*
-       * If player reconnects after results,
-       * send results again.
-       */
-      else if (room.phase === "results") {
+      } else if (room.phase === "results") {
         sendResults(room, sessionId);
       }
 
@@ -334,19 +287,10 @@ io.on("connection", socket => {
     }
   );
 
-
-  /*
-   * CREATE GAME
-   */
   socket.on(
     "createGame",
     (name, sessionId, cb) => {
 
-      /*
-       * Backward-compatible handling:
-       *
-       * createGame(name, callback)
-       */
       if (typeof sessionId === "function") {
         cb = sessionId;
         sessionId = makeSessionId();
@@ -356,9 +300,10 @@ io.on("connection", socket => {
         String(sessionId || "").trim() ||
         makeSessionId();
 
-      name = String(name || "")
-        .trim()
-        .slice(0, 30);
+      name =
+        String(name || "")
+          .trim()
+          .slice(0, 30);
 
       if (!name) {
         return error(cb, "Enter your name.");
@@ -368,25 +313,18 @@ io.on("connection", socket => {
 
       const room = {
         code,
-
-        // Host is also stored as a player,
-        // but host does not play or vote.
         host: sessionId,
-
         phase: "lobby",
 
         players: new Map(),
 
         normalWord: "",
-
         imposterWords: [],
 
         assignments: new Map(),
-
         votes: new Map(),
 
         revealed: false,
-
         result: null
       };
 
@@ -416,21 +354,19 @@ io.on("connection", socket => {
     }
   );
 
-
-  /*
-   * JOIN GAME
-   */
   socket.on(
     "joinGame",
     ({ code, name, sessionId }, cb) => {
 
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
-      name = String(name || "")
-        .trim()
-        .slice(0, 30);
+      name =
+        String(name || "")
+          .trim()
+          .slice(0, 30);
 
       sessionId =
         String(sessionId || "").trim() ||
@@ -445,14 +381,11 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Returning browser session.
-       */
+      // Returning browser session.
       const existingPlayer =
         room.players.get(sessionId);
 
       if (existingPlayer) {
-
         clearDisconnectTimer(sessionId);
 
         existingPlayer.socketId = socket.id;
@@ -475,13 +408,9 @@ io.on("connection", socket => {
         });
 
         emitRoom(room);
-
         return;
       }
 
-      /*
-       * New player cannot join after game starts.
-       */
       if (room.phase !== "lobby") {
         return error(
           cb,
@@ -494,10 +423,7 @@ io.on("connection", socket => {
       }
 
       if (room.players.size >= MAX_PLAYERS) {
-        return error(
-          cb,
-          "This game is full."
-        );
+        return error(cb, "This game is full.");
       }
 
       room.players.set(sessionId, {
@@ -524,63 +450,53 @@ io.on("connection", socket => {
     }
   );
 
-
-  /*
-   * HOST STARTS GAME SETUP
-   */
-  socket.on(
-    "openSetup",
-    (code, cb) => {
-
-      code = String(code || "")
+  socket.on("openSetup", (code, cb) => {
+    code =
+      String(code || "")
         .trim()
         .toUpperCase();
 
-      const room = rooms.get(code);
+    const room = rooms.get(code);
 
-      if (!room) {
-        return error(cb, "Game not found.");
-      }
-
-      if (room.host !== socket.data.playerId) {
-        return error(
-          cb,
-          "Only the host can start the game."
-        );
-      }
-
-      if (room.players.size < MIN_PLAYERS) {
-        return error(
-          cb,
-          `At least ${MIN_PLAYERS} players are required.`
-        );
-      }
-
-      room.phase = "setup";
-
-      cb?.({
-        ok: true,
-        room: publicRoom(
-          room,
-          socket.data.playerId
-        )
-      });
-
-      emitRoom(room);
+    if (!room) {
+      return error(cb, "Game not found.");
     }
-  );
 
+    if (room.host !== socket.data.playerId) {
+      return error(
+        cb,
+        "Only the host can start the game."
+      );
+    }
 
-  /*
-   * HOST SUBMITS WORDS AND STARTS PLAYER GAME
-   */
+    if (room.players.size < MIN_PLAYERS) {
+      return error(
+        cb,
+        `At least ${MIN_PLAYERS} players are required.`
+      );
+    }
+
+    room.phase = "setup";
+
+    cb?.({
+      ok: true,
+      room: publicRoom(
+        room,
+        socket.data.playerId
+      )
+    });
+
+    emitRoom(room);
+  });
+
   socket.on(
     "startGame",
     ({ code, normalWord, imposterWords }, cb) => {
 
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
       const room = rooms.get(code);
 
@@ -634,9 +550,10 @@ io.on("connection", socket => {
         );
       }
 
-      const allWords =
-        [normalWord, ...imposterWords]
-          .map(w => w.toLowerCase());
+      const allWords = [
+        normalWord,
+        ...imposterWords
+      ].map(w => w.toLowerCase());
 
       if (
         new Set(allWords).size !==
@@ -648,9 +565,6 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Shuffle players.
-       */
       const playerIds =
         [...room.players.keys()];
 
@@ -660,7 +574,9 @@ io.on("connection", socket => {
         i--
       ) {
         const j =
-          Math.floor(Math.random() * (i + 1));
+          Math.floor(
+            Math.random() * (i + 1)
+          );
 
         [
           playerIds[i],
@@ -680,9 +596,6 @@ io.on("connection", socket => {
       room.revealed = false;
       room.result = null;
 
-      /*
-       * Host is not part of the player game.
-       */
       const playableIds =
         playerIds.filter(
           id => id !== room.host
@@ -695,9 +608,6 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Assign imposters.
-       */
       const imposterIds =
         playableIds.slice(0, count);
 
@@ -713,91 +623,70 @@ io.on("connection", socket => {
         }
       );
 
-      /*
-       * Assign normal/imposter words.
-       */
       for (const id of playableIds) {
         room.assignments.set(
           id,
           imposterById.get(id) ||
-          normalWord
+            normalWord
         );
       }
 
       room.phase = "playing";
 
-      /*
-       * Send each player ONLY their own word.
-       */
       for (const id of playableIds) {
         sendSecretWord(room, id);
       }
 
-      cb?.({
-        ok: true
-      });
+      cb?.({ ok: true });
 
       emitRoom(room);
     }
   );
 
-
-  /*
-   * HOST OPENS VOTING
-   */
-  socket.on(
-    "openVoting",
-    (code, cb) => {
-
-      code = String(code || "")
+  socket.on("openVoting", (code, cb) => {
+    code =
+      String(code || "")
         .trim()
         .toUpperCase();
 
-      const room = rooms.get(code);
+    const room = rooms.get(code);
 
-      if (!room) {
-        return error(cb, "Game not found.");
-      }
-
-      if (room.host !== socket.data.playerId) {
-        return error(
-          cb,
-          "Only the host can open voting."
-        );
-      }
-
-      if (room.phase !== "playing") {
-        return error(
-          cb,
-          "Voting cannot be opened yet."
-        );
-      }
-
-      room.phase = "voting";
-
-      room.votes = new Map();
-      room.revealed = false;
-      room.result = null;
-
-      cb?.({
-        ok: true
-      });
-
-      emitRoom(room);
+    if (!room) {
+      return error(cb, "Game not found.");
     }
-  );
 
+    if (room.host !== socket.data.playerId) {
+      return error(
+        cb,
+        "Only the host can open voting."
+      );
+    }
 
-  /*
-   * PLAYER SUBMITS VOTE
-   */
+    if (room.phase !== "playing") {
+      return error(
+        cb,
+        "Voting cannot be opened yet."
+      );
+    }
+
+    room.phase = "voting";
+    room.votes = new Map();
+    room.revealed = false;
+    room.result = null;
+
+    cb?.({ ok: true });
+
+    emitRoom(room);
+  });
+
   socket.on(
     "submitVote",
     ({ code, targets }, cb) => {
 
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
       const room = rooms.get(code);
 
@@ -815,9 +704,6 @@ io.on("connection", socket => {
       const playerId =
         socket.data.playerId;
 
-      /*
-       * Host cannot vote.
-       */
       if (playerId === room.host) {
         return error(
           cb,
@@ -839,21 +725,14 @@ io.on("connection", socket => {
       const required =
         imposterCount(room.players.size);
 
-      /*
-       * Remove duplicate selections.
-       */
-      const uniqueTargets =
-        [
-          ...new Set(
-            Array.isArray(targets)
-              ? targets
-              : []
-          )
-        ];
+      const uniqueTargets = [
+        ...new Set(
+          Array.isArray(targets)
+            ? targets
+            : []
+        )
+      ];
 
-      /*
-       * Must select exact number of imposters.
-       */
       if (
         uniqueTargets.length !==
         required
@@ -866,9 +745,6 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Cannot vote for yourself.
-       */
       if (
         uniqueTargets.some(
           id =>
@@ -882,38 +758,25 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Store vote.
-       */
       room.votes.set(
         playerId,
         uniqueTargets
       );
 
-      cb?.({
-        ok: true
-      });
+      cb?.({ ok: true });
 
-      /*
-       * IMPORTANT:
-       * This immediately updates every player's
-       * room state, including host vote count.
-       */
       emitRoom(room);
     }
   );
 
-
-  /*
-   * HOST REVEALS RESULTS
-   */
   socket.on(
     "revealResults",
     (code, cb) => {
 
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
       const room = rooms.get(code);
 
@@ -935,9 +798,6 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Host does not vote.
-       */
       if (
         room.votes.size !==
         room.players.size - 1
@@ -953,18 +813,12 @@ io.on("connection", socket => {
 
       const counts = {};
 
-      /*
-       * Initialize vote counts.
-       */
       for (const p of room.players.values()) {
         if (p.id !== room.host) {
           counts[p.id] = 0;
         }
       }
 
-      /*
-       * Count votes.
-       */
       for (
         const targets of room.votes.values()
       ) {
@@ -974,9 +828,6 @@ io.on("connection", socket => {
         }
       }
 
-      /*
-       * Find imposters.
-       */
       const imposters =
         [...room.assignments.entries()]
           .filter(
@@ -985,9 +836,6 @@ io.on("connection", socket => {
           )
           .map(([id]) => id);
 
-      /*
-       * Build result object.
-       */
       room.result = {
         playerCount:
           room.players.size - 1,
@@ -1017,35 +865,29 @@ io.on("connection", socket => {
           room.imposterWords
       };
 
-      /*
-       * Send results to everyone.
-       */
       io.to(room.code).emit(
         "results",
         room.result
       );
 
-      cb?.({
-        ok: true
-      });
+      cb?.({ ok: true });
 
       emitRoom(room);
     }
   );
 
+  // ============================================================
+  // PLAY ANOTHER ROUND
+  // ============================================================
 
-  /*
-   * PLAY ANOTHER ROUND
-   *
-   * Host can start another round after results.
-   */
   socket.on(
     "playAgain",
     (code, cb) => {
 
-      code = String(code || "")
-        .trim()
-        .toUpperCase();
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
 
       const room = rooms.get(code);
 
@@ -1073,11 +915,6 @@ io.on("connection", socket => {
         );
       }
 
-      /*
-       * Reset round-specific data.
-       *
-       * Players remain in the room.
-       */
       room.phase = "setup";
 
       room.normalWord = "";
@@ -1089,6 +926,12 @@ io.on("connection", socket => {
       room.revealed = false;
       room.result = null;
 
+      // Notify ALL players immediately.
+      io.to(room.code).emit(
+        "roundStarting",
+        "Starting another round… The host is setting up the new words."
+      );
+
       cb?.({
         ok: true,
         room: publicRoom(
@@ -1097,57 +940,94 @@ io.on("connection", socket => {
         )
       });
 
-      /*
-       * Everyone receives the setup/lobby state.
-       */
       emitRoom(room);
     }
   );
 
+  // ============================================================
+  // START COMPLETELY NEW GAME
+  // ============================================================
 
-  /*
-   * PLAYER DISCONNECT
-   */
+  socket.on(
+    "startNewGame",
+    (code, cb) => {
+
+      code =
+        String(code || "")
+          .trim()
+          .toUpperCase();
+
+      const room = rooms.get(code);
+
+      if (!room) {
+        return error(
+          cb,
+          "Game not found."
+        );
+      }
+
+      const playerId =
+        socket.data.playerId;
+
+      if (room.host !== playerId) {
+        return error(
+          cb,
+          "Only the host can start a new game."
+        );
+      }
+
+      // Tell every currently connected player.
+      io.to(room.code).emit(
+        "newGameStarted",
+        "The host started a new game. Returning to the start screen…"
+      );
+
+      // Cancel reconnect timers.
+      for (
+        const player of room.players.values()
+      ) {
+        clearDisconnectTimer(player.id);
+      }
+
+      // IMPORTANT:
+      // Completely delete the old room.
+      // A refresh can therefore NEVER restore it.
+      rooms.delete(room.code);
+
+      cb?.({
+        ok: true
+      });
+    }
+  );
+
   socket.on("disconnect", () => {
-
     const playerId =
       socket.data.playerId;
 
     const code =
       socket.data.roomCode;
 
-    if (!playerId || !code) {
-      return;
-    }
+    if (!playerId || !code) return;
 
     const room = rooms.get(code);
 
-    if (!room) {
-      return;
-    }
+    if (!room) return;
 
     const player =
       room.players.get(playerId);
 
-    if (!player) {
-      return;
-    }
+    if (!player) return;
 
-    /*
-     * Ignore an old socket disconnect if the player
-     * already reconnected with a newer socket.
-     */
-    if (player.socketId !== socket.id) {
+    // Ignore stale socket disconnect.
+    if (
+      player.socketId !== socket.id
+    ) {
       return;
     }
 
     player.connected = false;
 
-    /*
-     * Do NOT immediately remove the player.
-     *
-     * Keep them for 2 minutes so the browser can reconnect.
-     */
+    // Give the browser time to reconnect.
     scheduleDisconnectRemoval(
       room,
       playerId
@@ -1157,10 +1037,6 @@ io.on("connection", socket => {
   });
 });
 
-
-/*
- * START SERVER
- */
 const PORT =
   process.env.PORT || 3000;
 
