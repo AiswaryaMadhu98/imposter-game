@@ -108,8 +108,10 @@
   <section id="voting" class="card hidden">
     <h2>Vote</h2>
     <div id="voteSummary" class="notice"></div>
-    <form id="voteForm"></form>
-    <div class="actions"><button id="submitVote" type="submit">Submit Vote</button></div>
+    <form id="voteForm">
+      <div id="voteOptions"></div>
+      <div class="actions"><button id="submitVote" type="submit">Submit Vote</button></div>
+    </form>
     <div id="voteError"></div>
   </section>
 
@@ -212,8 +214,12 @@ function render() {
     if (isHost) {
       show("hostVoting");
       const totalPlayers = room.playerCount - 1;
-      $("hostVoteProgress").textContent = room.votesSubmitted + " / " + totalPlayers + " players voted";
+      $("hostVoteProgress").textContent =
+        room.votesSubmitted + " / " + totalPlayers + " players voted";
       $("revealBtn").disabled = !room.allVotesSubmitted;
+      $("revealError").innerHTML = room.allVotesSubmitted
+        ? '<div class="success">Everyone has voted. You can reveal the results.</div>'
+        : "";
     } else {
       show("voting");
       renderVoting();
@@ -237,18 +243,29 @@ function renderSetup() {
 
 function renderVoting() {
   const required = room.imposterCount;
-  $("voteSummary").textContent = "Select exactly " + required + " player" + (required > 1 ? "s" : "") + ". Your vote stays private.";
+  $("voteSummary").textContent =
+    "Select exactly " + required + " player" + (required > 1 ? "s" : "") + ". Your vote stays private.";
+
   const players = room.players.filter(p => p.id !== room.host && p.id !== me);
-  $("voteForm").innerHTML = players.map(p =>
-    '<label class="voteRow"><input type="checkbox" value="' + escapeHtml(p.id) + '"> <span>' + escapeHtml(p.name) + '</span></label>'
+  $("voteOptions").innerHTML = players.map(p =>
+    '<label class="voteRow"><input type="checkbox" value="' + escapeHtml(p.id) + '"> <span>' +
+    escapeHtml(p.name) + '</span></label>'
   ).join("");
 
-  $("voteForm").querySelectorAll("input").forEach(input => {
+  $("submitVote").disabled = false;
+  $("voteError").innerHTML = "";
+
+  $("voteOptions").querySelectorAll("input").forEach(input => {
     input.addEventListener("change", () => {
       if (input.checked) {
-        if (myVote.size >= required) input.checked = false;
-        else myVote.add(input.value);
-      } else myVote.delete(input.value);
+        if (myVote.size >= required) {
+          input.checked = false;
+          return;
+        }
+        myVote.add(input.value);
+      } else {
+        myVote.delete(input.value);
+      }
     });
   });
 }
@@ -305,15 +322,28 @@ $("hideSecret").onclick = () => {
 
 $("voteForm").addEventListener("submit", e => {
   e.preventDefault();
-  setError("voteError","");
-  const targets = [...myVote];
+  setError("voteError", "");
+
+  const targets = [...$("voteOptions").querySelectorAll("input:checked")].map(x => x.value);
+
   if (targets.length !== room.imposterCount) {
-    return setError("voteError", "Select exactly " + room.imposterCount + " player" + (room.imposterCount>1?"s":"") + ".");
+    return setError(
+      "voteError",
+      "Select exactly " + room.imposterCount + " player" + (room.imposterCount > 1 ? "s" : "") + "."
+    );
   }
-  socket.emit("submitVote", {code:room.code, targets}, res => {
-    if (!res.ok) return setError("voteError", res.error);
-    $("voteSummary").textContent = "Vote submitted. Waiting for the other players...";
-    $("submitVote").disabled = true;
+
+  $("submitVote").disabled = true;
+
+  socket.emit("submitVote", { code: room.code, targets }, res => {
+    if (!res.ok) {
+      $("submitVote").disabled = false;
+      return setError("voteError", res.error);
+    }
+
+    $("voteSummary").textContent =
+      "Your vote has been submitted. Waiting for the other players...";
+    $("voteOptions").querySelectorAll("input").forEach(x => x.disabled = true);
   });
 });
 
