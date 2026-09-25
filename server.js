@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
 app.use(express.static("public"));
 
 const rooms = new Map();
@@ -13,12 +14,17 @@ const disconnectTimers = new Map();
 
 const MAX_PLAYERS = 35;
 const MIN_PLAYERS = 3;
-const RECONNECT_GRACE_MS = 2 * 60 * 1000; // Keep disconnected players for 2 minutes.
+
+// Keep disconnected players in the game for 2 minutes.
+const RECONNECT_GRACE_MS = 2 * 60 * 1000;
 
 function makeCode() {
   let code;
-  do code = crypto.randomBytes(3).toString("hex").toUpperCase();
-  while (rooms.has(code));
+
+  do {
+    code = crypto.randomBytes(3).toString("hex").toUpperCase();
+  } while (rooms.has(code));
+
   return code;
 }
 
@@ -32,6 +38,11 @@ function imposterCount(n) {
   return 3;
 }
 
+/*
+ * Return room information that is safe to send to the browser.
+ *
+ * viewerId is important because hasVoted is different for every player.
+ */
 function publicRoom(room, viewerId = null) {
   return {
     code: room.code,
@@ -55,25 +66,48 @@ function publicRoom(room, viewerId = null) {
 
     votesSubmitted: room.votes.size,
 
+    // Host does not vote, therefore playerCount - 1.
     allVotesSubmitted:
       room.votes.size === Math.max(room.players.size - 1, 0) &&
       room.players.size > 1,
 
     revealed: room.revealed,
 
+    // This is specific to the current player.
     hasVoted: viewerId
       ? room.votes.has(viewerId)
       : false
   };
 }
 
+/*
+ * Send each connected player their own room state.
+ *
+ * IMPORTANT:
+ * We cannot broadcast one common room object because
+ * hasVoted is different for each player.
+ */
 function emitRoom(room) {
-  io.to(room.code).emit("room", publicRoom(room));
+  for (const player of room.players.values()) {
+    if (!player.connected) continue;
+
+    const playerSocket = io.sockets.sockets.get(player.socketId);
+
+    if (playerSocket) {
+      playerSocket.emit(
+        "room",
+        publicRoom(room, player.id)
+      );
+    }
+  }
 }
 
 function error(cb, message) {
   if (typeof cb === "function") {
-    cb({ ok: false, error: message });
+    cb({
+      ok: false,
+      error: message
+    });
   }
 }
 
@@ -86,6 +120,9 @@ function clearDisconnectTimer(playerId) {
   }
 }
 
+/*
+ * Send a player's secret word.
+ */
 function sendSecretWord(room, playerId) {
   const player = room.players.get(playerId);
 
@@ -108,6 +145,9 @@ function sendSecretWord(room, playerId) {
   });
 }
 
+/*
+ * Send results to one player.
+ */
 function sendResults(room, playerId) {
   if (!room.result) return;
 
@@ -122,6 +162,9 @@ function sendResults(room, playerId) {
   }
 }
 
+/*
+ * Remove a player after reconnect grace period expires.
+ */
 function removePlayer(room, playerId, reason = null) {
   const player = room.players.get(playerId);
 
@@ -141,11 +184,11 @@ function removePlayer(room, playerId, reason = null) {
   const wasHost = room.host === playerId;
 
   if (wasHost) {
-
-    // During an active game, give the host a reconnect grace period.
-    // removePlayer is only called after that grace period expires.
+    /*
+     * If host leaves during an active game and doesn't reconnect,
+     * end the game.
+     */
     if (room.phase !== "lobby") {
-
       io.to(room.code).emit(
         "gameEnded",
         reason || "The host left the game."
@@ -155,7 +198,10 @@ function removePlayer(room, playerId, reason = null) {
       return;
     }
 
-    // In the lobby, transfer control to the first remaining player.
+    /*
+     * If host leaves while still in lobby,
+     * transfer host to another player.
+     */
     room.host = [...room.players.keys()][0];
     room.phase = "lobby";
 
@@ -174,11 +220,13 @@ function removePlayer(room, playerId, reason = null) {
   emitRoom(room);
 }
 
+/*
+ * Give disconnected players time to reconnect.
+ */
 function scheduleDisconnectRemoval(room, playerId) {
   clearDisconnectTimer(playerId);
 
   const timer = setTimeout(() => {
-
     disconnectTimers.delete(playerId);
 
     const currentRoom = rooms.get(room.code);
@@ -196,180 +244,161 @@ function scheduleDisconnectRemoval(room, playerId) {
         ? "The host disconnected and did not reconnect."
         : "A player disconnected."
     );
-
   }, RECONNECT_GRACE_MS);
 
   disconnectTimers.set(playerId, timer);
 }
 
+
+/*
+ * SOCKET.IO
+ */
 io.on("connection", socket => {
 
-  // Lightweight heartbeat.
+  /*
+   * Lightweight heartbeat.
+   *
+   * The browser sends this every 20 seconds during the game.
+   */
   socket.on("heartbeat", cb => {
-
     if (typeof cb === "function") {
       cb({
         ok: true,
         time: Date.now()
       });
     }
-
   });
 
-  // Restore a previous player session after reconnecting.
-  socket.on("restoreSession", ({ sessionId, code }, cb) => {
 
-    sessionId = String(sessionId || "").trim();
-    code = String(code || "").trim().toUpperCase();
+  /*
+   * RESTORE PREVIOUS SESSION
+   */
+  socket.on(
+    "restoreSession",
+    ({ sessionId, code }, cb) => {
 
-    const room = rooms.get(code);
-    const player = room?.players.get(sessionId);
+      sessionId = String(sessionId || "").trim();
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
 
-    if (!room || !player) {
-      return error(
-        cb,
-        "Your previous game session could not be restored."
-      );
-    }
+      const room = rooms.get(code);
+      const player = room?.players.get(sessionId);
 
-    clearDisconnectTimer(sessionId);
-
-    player.socketId = socket.id;
-    player.connected = true;
-
-    socket.data.playerId = sessionId;
-    socket.data.roomCode = code;
-
-    socket.join(code);
-
-    const restoredRoom =
-      publicRoom(room, sessionId);
-
-    cb?.({
-      ok: true,
-      id: sessionId,
-      code,
-      room: restoredRoom
-    });
-
-    socket.emit("room", restoredRoom);
-
-    // Restore the player's secret word if the game is still playing.
-    if (room.phase === "playing") {
-      sendSecretWord(room, sessionId);
-
-    } else if (room.phase === "results") {
-      sendResults(room, sessionId);
-    }
-
-    emitRoom(room);
-  });
-
-  // CREATE GAME
-  socket.on("createGame", (name, sessionId, cb) => {
-
-    // Backward-compatible argument handling:
-    // createGame(name, callback)
-    if (typeof sessionId === "function") {
-      cb = sessionId;
-      sessionId = makeSessionId();
-    }
-
-    sessionId =
-      String(sessionId || "").trim() ||
-      makeSessionId();
-
-    name = String(name || "")
-      .trim()
-      .slice(0, 30);
-
-    if (!name) {
-      return error(cb, "Enter your name.");
-    }
-
-    const code = makeCode();
-
-    const room = {
-      code,
-      host: sessionId,
-      phase: "lobby",
-
-      players: new Map(),
-
-      normalWord: "",
-      imposterWords: [],
-      assignments: new Map(),
-      votes: new Map(),
-
-      revealed: false,
-      result: null
-    };
-
-    room.players.set(sessionId, {
-      id: sessionId,
-      name,
-
-      joinedAt: Date.now(),
-
-      socketId: socket.id,
-      connected: true
-    });
-
-    rooms.set(code, room);
-
-    socket.data.playerId = sessionId;
-    socket.data.roomCode = code;
-
-    socket.join(code);
-
-    cb?.({
-      ok: true,
-      id: sessionId,
-      code,
-      room: publicRoom(room, sessionId)
-    });
-
-    emitRoom(room);
-  });
-
-  // JOIN GAME
-  socket.on("joinGame", ({ code, name, sessionId }, cb) => {
-
-    code = String(code || "")
-      .trim()
-      .toUpperCase();
-
-    name = String(name || "")
-      .trim()
-      .slice(0, 30);
-
-    sessionId =
-      String(sessionId || "").trim() ||
-      makeSessionId();
-
-    const room = rooms.get(code);
-
-    if (!room) {
-      return error(
-        cb,
-        "Game not found. Check the code."
-      );
-    }
-
-    // Returning player.
-    const existingPlayer =
-      room.players.get(sessionId);
-
-    if (existingPlayer) {
+      if (!room || !player) {
+        return error(
+          cb,
+          "Your previous game session could not be restored."
+        );
+      }
 
       clearDisconnectTimer(sessionId);
 
-      existingPlayer.socketId = socket.id;
-      existingPlayer.connected = true;
+      player.socketId = socket.id;
+      player.connected = true;
 
-      if (name) {
-        existingPlayer.name = name;
+      socket.data.playerId = sessionId;
+      socket.data.roomCode = code;
+
+      socket.join(code);
+
+      const restoredRoom =
+        publicRoom(room, sessionId);
+
+      cb?.({
+        ok: true,
+        id: sessionId,
+        code,
+        room: restoredRoom
+      });
+
+      socket.emit("room", restoredRoom);
+
+      /*
+       * If player reconnects during clue round,
+       * send their secret word again.
+       */
+      if (room.phase === "playing") {
+        sendSecretWord(room, sessionId);
       }
+
+      /*
+       * If player reconnects after results,
+       * send results again.
+       */
+      else if (room.phase === "results") {
+        sendResults(room, sessionId);
+      }
+
+      emitRoom(room);
+    }
+  );
+
+
+  /*
+   * CREATE GAME
+   */
+  socket.on(
+    "createGame",
+    (name, sessionId, cb) => {
+
+      /*
+       * Backward-compatible handling:
+       *
+       * createGame(name, callback)
+       */
+      if (typeof sessionId === "function") {
+        cb = sessionId;
+        sessionId = makeSessionId();
+      }
+
+      sessionId =
+        String(sessionId || "").trim() ||
+        makeSessionId();
+
+      name = String(name || "")
+        .trim()
+        .slice(0, 30);
+
+      if (!name) {
+        return error(cb, "Enter your name.");
+      }
+
+      const code = makeCode();
+
+      const room = {
+        code,
+
+        // Host is also stored as a player,
+        // but host does not play or vote.
+        host: sessionId,
+
+        phase: "lobby",
+
+        players: new Map(),
+
+        normalWord: "",
+
+        imposterWords: [],
+
+        assignments: new Map(),
+
+        votes: new Map(),
+
+        revealed: false,
+
+        result: null
+      };
+
+      room.players.set(sessionId, {
+        id: sessionId,
+        name,
+        joinedAt: Date.now(),
+        socketId: socket.id,
+        connected: true
+      });
+
+      rooms.set(code, room);
 
       socket.data.playerId = sessionId;
       socket.data.roomCode = code;
@@ -384,91 +413,167 @@ io.on("connection", socket => {
       });
 
       emitRoom(room);
-
-      return;
     }
+  );
 
-    if (room.phase !== "lobby") {
-      return error(
-        cb,
-        "This game has already started."
-      );
+
+  /*
+   * JOIN GAME
+   */
+  socket.on(
+    "joinGame",
+    ({ code, name, sessionId }, cb) => {
+
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
+
+      name = String(name || "")
+        .trim()
+        .slice(0, 30);
+
+      sessionId =
+        String(sessionId || "").trim() ||
+        makeSessionId();
+
+      const room = rooms.get(code);
+
+      if (!room) {
+        return error(
+          cb,
+          "Game not found. Check the code."
+        );
+      }
+
+      /*
+       * Returning browser session.
+       */
+      const existingPlayer =
+        room.players.get(sessionId);
+
+      if (existingPlayer) {
+
+        clearDisconnectTimer(sessionId);
+
+        existingPlayer.socketId = socket.id;
+        existingPlayer.connected = true;
+
+        if (name) {
+          existingPlayer.name = name;
+        }
+
+        socket.data.playerId = sessionId;
+        socket.data.roomCode = code;
+
+        socket.join(code);
+
+        cb?.({
+          ok: true,
+          id: sessionId,
+          code,
+          room: publicRoom(room, sessionId)
+        });
+
+        emitRoom(room);
+
+        return;
+      }
+
+      /*
+       * New player cannot join after game starts.
+       */
+      if (room.phase !== "lobby") {
+        return error(
+          cb,
+          "This game has already started."
+        );
+      }
+
+      if (!name) {
+        return error(cb, "Enter your name.");
+      }
+
+      if (room.players.size >= MAX_PLAYERS) {
+        return error(
+          cb,
+          "This game is full."
+        );
+      }
+
+      room.players.set(sessionId, {
+        id: sessionId,
+        name,
+        joinedAt: Date.now(),
+        socketId: socket.id,
+        connected: true
+      });
+
+      socket.data.playerId = sessionId;
+      socket.data.roomCode = code;
+
+      socket.join(code);
+
+      cb?.({
+        ok: true,
+        id: sessionId,
+        code,
+        room: publicRoom(room, sessionId)
+      });
+
+      emitRoom(room);
     }
+  );
 
-    if (!name) {
-      return error(cb, "Enter your name.");
+
+  /*
+   * HOST STARTS GAME SETUP
+   */
+  socket.on(
+    "openSetup",
+    (code, cb) => {
+
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
+
+      const room = rooms.get(code);
+
+      if (!room) {
+        return error(cb, "Game not found.");
+      }
+
+      if (room.host !== socket.data.playerId) {
+        return error(
+          cb,
+          "Only the host can start the game."
+        );
+      }
+
+      if (room.players.size < MIN_PLAYERS) {
+        return error(
+          cb,
+          `At least ${MIN_PLAYERS} players are required.`
+        );
+      }
+
+      room.phase = "setup";
+
+      cb?.({
+        ok: true,
+        room: publicRoom(
+          room,
+          socket.data.playerId
+        )
+      });
+
+      emitRoom(room);
     }
+  );
 
-    if (room.players.size >= MAX_PLAYERS) {
-      return error(cb, "This game is full.");
-    }
 
-    room.players.set(sessionId, {
-      id: sessionId,
-      name,
-
-      joinedAt: Date.now(),
-
-      socketId: socket.id,
-      connected: true
-    });
-
-    socket.data.playerId = sessionId;
-    socket.data.roomCode = code;
-
-    socket.join(code);
-
-    cb?.({
-      ok: true,
-      id: sessionId,
-      code,
-      room: publicRoom(room, sessionId)
-    });
-
-    emitRoom(room);
-  });
-
-  // OPEN SETUP
-  socket.on("openSetup", (code, cb) => {
-
-    code = String(code || "")
-      .trim()
-      .toUpperCase();
-
-    const room = rooms.get(code);
-
-    if (!room) {
-      return error(cb, "Game not found.");
-    }
-
-    if (room.host !== socket.data.playerId) {
-      return error(
-        cb,
-        "Only the host can start the game."
-      );
-    }
-
-    if (room.players.size < MIN_PLAYERS) {
-      return error(
-        cb,
-        `At least ${MIN_PLAYERS} players are required.`
-      );
-    }
-
-    room.phase = "setup";
-
-    cb?.({
-      ok: true,
-      room: publicRoom(
-        room,
-        socket.data.playerId
-      )
-    });
-
-    emitRoom(room);
-  });
-
-  // START GAME
+  /*
+   * HOST SUBMITS WORDS AND STARTS PLAYER GAME
+   */
   socket.on(
     "startGame",
     ({ code, normalWord, imposterWords }, cb) => {
@@ -543,6 +648,9 @@ io.on("connection", socket => {
         );
       }
 
+      /*
+       * Shuffle players.
+       */
       const playerIds =
         [...room.players.keys()];
 
@@ -554,8 +662,13 @@ io.on("connection", socket => {
         const j =
           Math.floor(Math.random() * (i + 1));
 
-        [playerIds[i], playerIds[j]] =
-          [playerIds[j], playerIds[i]];
+        [
+          playerIds[i],
+          playerIds[j]
+        ] = [
+          playerIds[j],
+          playerIds[i]
+        ];
       }
 
       room.normalWord = normalWord;
@@ -567,7 +680,9 @@ io.on("connection", socket => {
       room.revealed = false;
       room.result = null;
 
-      // Host is controller only.
+      /*
+       * Host is not part of the player game.
+       */
       const playableIds =
         playerIds.filter(
           id => id !== room.host
@@ -580,10 +695,14 @@ io.on("connection", socket => {
         );
       }
 
+      /*
+       * Assign imposters.
+       */
       const imposterIds =
         playableIds.slice(0, count);
 
-      const imposterById = new Map();
+      const imposterById =
+        new Map();
 
       imposterIds.forEach(
         (id, index) => {
@@ -594,68 +713,84 @@ io.on("connection", socket => {
         }
       );
 
+      /*
+       * Assign normal/imposter words.
+       */
       for (const id of playableIds) {
-
         room.assignments.set(
           id,
           imposterById.get(id) ||
           normalWord
         );
-
       }
 
       room.phase = "playing";
 
-      // Send each player only their own word.
+      /*
+       * Send each player ONLY their own word.
+       */
       for (const id of playableIds) {
         sendSecretWord(room, id);
       }
 
-      cb?.({ ok: true });
+      cb?.({
+        ok: true
+      });
 
       emitRoom(room);
     }
   );
 
-  // OPEN VOTING
-  socket.on("openVoting", (code, cb) => {
 
-    code = String(code || "")
-      .trim()
-      .toUpperCase();
+  /*
+   * HOST OPENS VOTING
+   */
+  socket.on(
+    "openVoting",
+    (code, cb) => {
 
-    const room = rooms.get(code);
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
 
-    if (!room) {
-      return error(cb, "Game not found.");
+      const room = rooms.get(code);
+
+      if (!room) {
+        return error(cb, "Game not found.");
+      }
+
+      if (room.host !== socket.data.playerId) {
+        return error(
+          cb,
+          "Only the host can open voting."
+        );
+      }
+
+      if (room.phase !== "playing") {
+        return error(
+          cb,
+          "Voting cannot be opened yet."
+        );
+      }
+
+      room.phase = "voting";
+
+      room.votes = new Map();
+      room.revealed = false;
+      room.result = null;
+
+      cb?.({
+        ok: true
+      });
+
+      emitRoom(room);
     }
+  );
 
-    if (room.host !== socket.data.playerId) {
-      return error(
-        cb,
-        "Only the host can open voting."
-      );
-    }
 
-    if (room.phase !== "playing") {
-      return error(
-        cb,
-        "Voting cannot be opened yet."
-      );
-    }
-
-    room.phase = "voting";
-    room.votes = new Map();
-
-    room.revealed = false;
-    room.result = null;
-
-    cb?.({ ok: true });
-
-    emitRoom(room);
-  });
-
-  // SUBMIT VOTE
+  /*
+   * PLAYER SUBMITS VOTE
+   */
   socket.on(
     "submitVote",
     ({ code, targets }, cb) => {
@@ -680,6 +815,9 @@ io.on("connection", socket => {
       const playerId =
         socket.data.playerId;
 
+      /*
+       * Host cannot vote.
+       */
       if (playerId === room.host) {
         return error(
           cb,
@@ -701,6 +839,9 @@ io.on("connection", socket => {
       const required =
         imposterCount(room.players.size);
 
+      /*
+       * Remove duplicate selections.
+       */
       const uniqueTargets =
         [
           ...new Set(
@@ -710,7 +851,13 @@ io.on("connection", socket => {
           )
         ];
 
-      if (uniqueTargets.length !== required) {
+      /*
+       * Must select exact number of imposters.
+       */
+      if (
+        uniqueTargets.length !==
+        required
+      ) {
         return error(
           cb,
           `Select exactly ${required} player${
@@ -719,6 +866,9 @@ io.on("connection", socket => {
         );
       }
 
+      /*
+       * Cannot vote for yourself.
+       */
       if (
         uniqueTargets.some(
           id =>
@@ -732,18 +882,31 @@ io.on("connection", socket => {
         );
       }
 
+      /*
+       * Store vote.
+       */
       room.votes.set(
         playerId,
         uniqueTargets
       );
 
-      cb?.({ ok: true });
+      cb?.({
+        ok: true
+      });
 
+      /*
+       * IMPORTANT:
+       * This immediately updates every player's
+       * room state, including host vote count.
+       */
       emitRoom(room);
     }
   );
 
-  // REVEAL RESULTS
+
+  /*
+   * HOST REVEALS RESULTS
+   */
   socket.on(
     "revealResults",
     (code, cb) => {
@@ -772,6 +935,9 @@ io.on("connection", socket => {
         );
       }
 
+      /*
+       * Host does not vote.
+       */
       if (
         room.votes.size !==
         room.players.size - 1
@@ -787,21 +953,30 @@ io.on("connection", socket => {
 
       const counts = {};
 
+      /*
+       * Initialize vote counts.
+       */
       for (const p of room.players.values()) {
         if (p.id !== room.host) {
           counts[p.id] = 0;
         }
       }
 
-      for (const targets of room.votes.values()) {
-
+      /*
+       * Count votes.
+       */
+      for (
+        const targets of room.votes.values()
+      ) {
         for (const target of targets) {
           counts[target] =
             (counts[target] || 0) + 1;
         }
-
       }
 
+      /*
+       * Find imposters.
+       */
       const imposters =
         [...room.assignments.entries()]
           .filter(
@@ -810,6 +985,9 @@ io.on("connection", socket => {
           )
           .map(([id]) => id);
 
+      /*
+       * Build result object.
+       */
       room.result = {
         playerCount:
           room.players.size - 1,
@@ -839,18 +1017,97 @@ io.on("connection", socket => {
           room.imposterWords
       };
 
+      /*
+       * Send results to everyone.
+       */
       io.to(room.code).emit(
         "results",
         room.result
       );
 
-      cb?.({ ok: true });
+      cb?.({
+        ok: true
+      });
 
       emitRoom(room);
     }
   );
 
-  // DISCONNECT
+
+  /*
+   * PLAY ANOTHER ROUND
+   *
+   * Host can start another round after results.
+   */
+  socket.on(
+    "playAgain",
+    (code, cb) => {
+
+      code = String(code || "")
+        .trim()
+        .toUpperCase();
+
+      const room = rooms.get(code);
+
+      if (!room) {
+        return error(
+          cb,
+          "Game not found."
+        );
+      }
+
+      const playerId =
+        socket.data.playerId;
+
+      if (room.host !== playerId) {
+        return error(
+          cb,
+          "Only the host can start another round."
+        );
+      }
+
+      if (room.phase !== "results") {
+        return error(
+          cb,
+          "The current round is not finished yet."
+        );
+      }
+
+      /*
+       * Reset round-specific data.
+       *
+       * Players remain in the room.
+       */
+      room.phase = "setup";
+
+      room.normalWord = "";
+      room.imposterWords = [];
+
+      room.assignments = new Map();
+      room.votes = new Map();
+
+      room.revealed = false;
+      room.result = null;
+
+      cb?.({
+        ok: true,
+        room: publicRoom(
+          room,
+          playerId
+        )
+      });
+
+      /*
+       * Everyone receives the setup/lobby state.
+       */
+      emitRoom(room);
+    }
+  );
+
+
+  /*
+   * PLAYER DISCONNECT
+   */
   socket.on("disconnect", () => {
 
     const playerId =
@@ -876,16 +1133,21 @@ io.on("connection", socket => {
       return;
     }
 
-    // Ignore an old socket disconnecting after
-    // the player has already reconnected.
+    /*
+     * Ignore an old socket disconnect if the player
+     * already reconnected with a newer socket.
+     */
     if (player.socketId !== socket.id) {
       return;
     }
 
     player.connected = false;
 
-    // Do NOT immediately remove the player.
-    // Give the browser/Socket.IO time to reconnect.
+    /*
+     * Do NOT immediately remove the player.
+     *
+     * Keep them for 2 minutes so the browser can reconnect.
+     */
     scheduleDisconnectRemoval(
       room,
       playerId
@@ -893,9 +1155,12 @@ io.on("connection", socket => {
 
     emitRoom(room);
   });
-
 });
 
+
+/*
+ * START SERVER
+ */
 const PORT =
   process.env.PORT || 3000;
 
