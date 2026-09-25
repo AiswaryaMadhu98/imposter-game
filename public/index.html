@@ -1,1 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Imposter Party</title><script src="/socket.io/socket.io.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#09090f;color:#fff;font-family:system-ui,-apple-system,sans-serif}main{max-width:720px;margin:auto;padding:24px 16px 50px}.logo{text-align:center;margin:22px 0 30px}.logo h1{font-size:48px;margin:0;font-weight:900}.logo p{color:#aaa}.card{background:#15151f;border:1px solid #ffffff14;border-radius:22px;padding:24px;box-shadow:0 18px 60px #0008;margin-bottom:16px}h2{margin-top:0}input{width:100%;padding:14px;border-radius:12px;border:1px solid #ffffff18;background:#0c0c13;color:#fff;font-size:16px;margin:7px 0 12px}button{border:0;border-radius:12px;padding:13px 17px;background:#7c3aed;color:#fff;font-weight:800;font-size:15px;cursor:pointer;margin:4px}button.secondary{background:#292938}.row{display:flex;gap:8px}.row>*{flex:1}.code{font-size:42px;font-weight:900;letter-spacing:8px;text-align:center;color:#c4b5fd}.players{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.person{padding:11px;border-radius:11px;background:#ffffff08}.hidden{display:none}.center{text-align:center}.word{font-size:44px;font-weight:900;color:#a78bfa;margin:20px}.imposter{font-size:32px;color:#fb7185;font-weight:900}.ready{color:#86efac}.vote{width:100%;text-align:left;background:#20202d}.vote.selected{outline:3px solid #a855f7}.muted{color:#aaa}.error{color:#fb7185;min-height:20px}@media(max-width:500px){.logo h1{font-size:38px}.code{font-size:34px}.word{font-size:34px}}
+</style></head>
+<body><main>
+<div class="logo"><h1>🎭 IMPOSTER</h1><p>One word. One imposter. Find the liar.</p></div>
 
+<section id="home" class="card">
+<h2>Create or Join</h2>
+<label>Your name</label><input id="name" maxlength="30" placeholder="Enter your name">
+<div class="row"><button onclick="create()">Create Game</button><button class="secondary" onclick="showJoin()">Join Game</button></div>
+<div id="joinBox" class="hidden"><label>Game code</label><input id="code" maxlength="6" placeholder="ABC123"><button onclick="join()">Join</button></div>
+<div id="err" class="error"></div>
+</section>
+
+<section id="lobby" class="card hidden">
+<div class="center"><div class="muted">Game code</div><div id="roomCode" class="code"></div><p>Share this code with your friends.</p></div>
+<h2>Players <span id="count"></span></h2><div id="players" class="players"></div>
+<div class="center"><p id="hostNote" class="muted"></p><button id="startBtn" class="hidden" onclick="start()">🚀 Start Game</button></div>
+</section>
+
+<section id="role" class="card hidden center">
+<h2>Your Secret</h2><p class="muted">Keep your screen private.</p><div id="roleContent"></div><button onclick="ready()">I'm ready</button>
+</section>
+
+<section id="clues" class="card hidden center">
+<h2>🗣️ Clue Round</h2><p>Go around the group. Everyone gives <b>one clue</b> about the word.</p><p class="muted">The imposter does not know the word. Try to blend in!</p><button id="voteBtn" class="hidden" onclick="startVoting()">🗳️ Start Voting</button>
+</section>
+
+<section id="voting" class="card hidden">
+<h2>🗳️ Who is the imposter?</h2><p class="muted">Choose one person. Votes are hidden until everyone submits.</p><div id="voteList"></div>
+</section>
+
+<section id="results" class="card hidden center">
+<h2>🎉 Reveal</h2><div id="resultText"></div><div id="score"></div><button onclick="location.reload()">Play Again</button>
+</section>
+</main>
+<script>
+const s=io();let me=null,room=null,selected=null,isHost=false;
+const $=id=>document.getElementById(id);function show(id){["home","lobby","role","clues","voting","results"].forEach(x=>$(x).classList.toggle("hidden",x!==id))}
+function err(x){$("err").textContent=x||""}
+function create(){const n=$("name").value.trim();if(!n)return err("Enter your name.");s.emit("createGame",n,r=>{if(!r.ok)return err(r.error);me=r.id;isHost=true;show("lobby")})}
+function showJoin(){$("joinBox").classList.remove("hidden")}
+function join(){const n=$("name").value.trim(),c=$("code").value.trim();if(!n||!c)return err("Enter your name and game code.");s.emit("joinGame",{name:n,code:c},r=>{if(!r.ok)return err(r.error);me=r.id;show("lobby")})}
+function start(){s.emit("startGame",{},r=>{if(r&&!r.ok)alert(r.error)})}
+function startVoting(){s.emit("startVoting")}
+function render(r){room=r;$("roomCode").textContent=r.code;$("count").textContent=`(${r.players.length}/30)`;$("players").innerHTML=r.players.map(p=>`<div class="person">${escape(p.name)} ${p.id===r.host?"👑":""}</div>`).join("");isHost=r.host===me;$("startBtn").classList.toggle("hidden",!isHost);$("hostNote").textContent=isHost?"You are the host. Start when everyone has joined.":"Waiting for the host to start…"}
+function escape(x){return x.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function ready(){show("clues");if(isHost)$("voteBtn").classList.remove("hidden")}
+s.on("roomUpdate",r=>{render(r);if(r.phase==="lobby")show("lobby");if(r.phase==="voting")renderVoting(r)});
+s.on("privateRole",d=>{show("role");$("roleContent").innerHTML=d.imposter?'<div class="imposter">😈 YOU ARE THE IMPOSTER</div><p>You do NOT know the word.<br>Listen to the clues and blend in.</p>':'<div class="ready">🟢 YOU ARE A PLAYER</div><div class="word">'+escape(d.word)+'</div><p>Remember the word. Do not show anyone.</p>'});
+s.on("phase",p=>{if(p==="clues")show("clues");if(p==="voting")renderVoting(room)});
+function renderVoting(r){show("voting");$("voteList").innerHTML=r.players.filter(p=>p.id!==me).map(p=>`<button class="vote" onclick="vote('${p.id}',this)">${escape(p.name)} ${p.hasVoted?"":" "}</button>`).join("")}
+function vote(id,el){if(selected)return;selected=id;el.classList.add("selected");s.emit("vote",id,r=>{if(!r.ok){selected=null;el.classList.remove("selected");alert(r.error)}})}
+s.on("results",d=>{show("results");const imp=room.players.find(p=>p.id===d.imposter);const names=d.winners.map(id=>escape(room.players.find(p=>p.id===id)?.name||"Unknown")).join(", ");$("resultText").innerHTML='<p>The secret word was</p><div class="word">'+escape(d.word)+'</div><p>The imposter was</p><div class="imposter">'+escape(imp?.name||"Unknown")+' 😈</div><p>Most votes: <b>'+names+'</b></p>';$("score").innerHTML=room.players.map(p=>`<div class="person">${escape(p.name)} — ${d.counts[p.id]||0} vote(s)</div>`).join("")});
+s.on("newHost",id=>{me===id&&(isHost=true);render(room)});
+</script></body></html>
