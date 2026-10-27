@@ -1,1606 +1,666 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Imposter Game</title>
-  <style>
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f7fb;color:#18202a}
-    .wrap{max-width:720px;margin:0 auto;padding:24px 16px 48px}
-    .card{background:#fff;border:1px solid #e2e7ef;border-radius:18px;padding:24px;box-shadow:0 8px 28px rgba(20,30,50,.06);margin-top:18px}
-    h1{margin:0 0 8px;font-size:30px}.muted{color:#667085}.small{font-size:13px}
-    input{width:100%;padding:13px 14px;border:1px solid #cfd6e2;border-radius:10px;font-size:16px;margin:6px 0 12px}
-    button{border:0;border-radius:10px;padding:13px 16px;font-size:15px;font-weight:700;cursor:pointer;background:#222;color:#fff}
-    button.secondary{background:#eef1f6;color:#18202a}.actions{display:flex;gap:10px;flex-wrap:wrap}
-    button:disabled{opacity:.45;cursor:not-allowed}
-    .hidden{display:none!important}.code{font-size:30px;font-weight:800;letter-spacing:5px;background:#f1f4f8;padding:12px 16px;border-radius:12px;display:inline-block}
-    .badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#e9eef7;font-size:12px;font-weight:800}
-    .hostbadge{background:#222;color:#fff}.stat{font-size:24px;font-weight:800}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .panel{padding:14px;border:1px solid #e4e8ef;border-radius:12px}.players{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:8px}
-    .players li{padding:10px 12px;background:#f7f8fa;border-radius:9px;display:flex;justify-content:space-between}
-    .word{font-size:38px;font-weight:900;text-align:center;padding:28px 10px}.notice{padding:12px;border-radius:10px;background:#f5f6f8;margin:12px 0}
-    .error{color:#b42318;background:#fff0ee;padding:10px;border-radius:9px;margin-top:10px}.success{color:#067647;background:#ecfdf3;padding:10px;border-radius:9px}
-    .voteRow{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid #e3e7ee;border-radius:10px;margin:8px 0}
-    .voteRow input{width:auto;margin:0}.resultRow{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:10px;border-bottom:1px solid #e8ebf0}
-    @media(max-width:520px){.grid{grid-template-columns:1fr}.card{padding:18px}}
-  </style>
-</head>
-<body>
-<div class="wrap">
-
-  <header>
-    <h1>🎭 Imposter</h1>
-    <div class="muted">Multiplayer party game</div>
-  </header>
-
-  <section id="home" class="card">
-    <h2>Create or Join</h2>
-
-    <label>Your name</label>
-    <input id="name" maxlength="30" placeholder="Enter your name">
-
-    <div class="actions">
-      <button id="createBtn">Create Game</button>
-    </div>
-
-    <hr style="border:0;border-top:1px solid #eee;margin:22px 0">
-
-    <label>Game code</label>
-    <input id="code" maxlength="6" placeholder="ABC123" style="text-transform:uppercase">
-
-    <div class="actions">
-      <button id="joinBtn" class="secondary">Join Game</button>
-    </div>
-
-    <div id="homeError"></div>
-  </section>
-
-  <section id="lobby" class="card hidden">
-
-    <div class="actions" style="justify-content:space-between;align-items:center">
-      <div>
-        <span id="roleBadge" class="badge"></span>
-      </div>
-
-      <div class="muted">Game code</div>
-    </div>
-
-    <div style="margin:8px 0 18px">
-      <span id="roomCode" class="code"></span>
-    </div>
-
-    <div class="grid">
-
-      <div class="panel">
-        <div class="muted small">Players joined</div>
-        <div id="playerCount" class="stat"></div>
-      </div>
-
-      <div class="panel">
-        <div class="muted small">Imposters</div>
-        <div id="imposterCount" class="stat"></div>
-      </div>
-
-    </div>
-
-    <div id="lobbyMessage" class="notice"></div>
-
-    <div id="hostControls" class="hidden">
-
-      <button id="startBtn">Start Game</button>
-
-      <div class="muted small" style="margin-top:8px">
-        You are the host/controller. You will not receive a secret word and will not vote.
-      </div>
-
-    </div>
-
-    <h3>Players</h3>
-
-    <ul id="playersList" class="players"></ul>
-
-  </section>
-
-  <section id="setup" class="card hidden">
-
-    <span class="badge hostbadge">HOST CONTROL</span>
-
-    <h2>Game Setup</h2>
-
-    <div id="setupSummary" class="notice"></div>
-
-    <label>Normal-player word</label>
-
-    <input id="normalWord" placeholder="Example: Beach">
-
-    <div id="imposterFields"></div>
-
-    <div class="actions">
-      <button id="submitWords">
-        Submit & Start Player Game
-      </button>
-    </div>
-
-    <div id="setupError"></div>
-
-  </section>
-
-  <section id="playing" class="card hidden">
-
-    <span id="playingRole" class="badge"></span>
-
-    <h2>Clue Round</h2>
-
-    <div id="playingMessage" class="notice"></div>
-
-    <!-- HOST ONLY IMPOSTER INFORMATION -->
-    <div
-      id="hostImposterPanel"
-      class="panel hidden"
-      style="margin:14px 0"
-    >
-
-      <strong>🔒 HOST ONLY — IMPOSTER(S)</strong>
-
-      <div
-        id="hostImposterList"
-        style="margin-top:8px"
-      ></div>
-
-      <div
-        class="muted small"
-        style="margin-top:8px"
-      >
-        Keep this information private. If the game UI stops working,
-        you can continue the game manually using this list.
-      </div>
-
-    </div>
-
-    <button id="openVotingBtn" class="hidden">
-      Open Voting
-    </button>
-
-  </section>
-
-  <section id="secret" class="card hidden">
-
-    <h2>Your Secret Word</h2>
-
-    <div class="word" id="secretWord"></div>
-
-    <div class="notice">
-      Keep this word private. Do not show your screen to anyone.
-    </div>
-
-    <button id="hideSecret">
-      I Remember My Word
-    </button>
-
-  </section>
-
-  <section id="voting" class="card hidden">
-
-    <h2>Vote</h2>
-
-    <div id="voteSummary" class="notice"></div>
-
-    <form id="voteForm">
-
-      <div id="voteOptions"></div>
-
-      <div class="actions">
-        <button id="submitVote" type="submit">
-          Submit Vote
-        </button>
-      </div>
-
-    </form>
-
-    <div id="voteError"></div>
-
-  </section>
-
-  <section id="hostVoting" class="card hidden">
-
-    <span class="badge hostbadge">
-      HOST CONTROL
-    </span>
-
-    <h2>Voting Progress</h2>
-
-    <div id="hostVoteProgress" class="stat"></div>
-
-    <div class="notice">
-      Votes are private. You will get the Reveal Results button
-      only after every player has voted.
-    </div>
-
-    <button id="revealBtn" disabled>
-      Reveal Results
-    </button>
-
-    <div id="revealError"></div>
-
-  </section>
-
-  <section id="results" class="card hidden">
-
-    <h2>🎉 Results Revealed</h2>
-
-    <div id="resultsSummary" class="notice"></div>
-
-    <h3>Imposters</h3>
-
-    <div id="impostersResult"></div>
-
-    <h3>Voting Results</h3>
-
-    <div id="resultsTable"></div>
-
-    <h3>Words</h3>
-
-    <div id="wordsResult"></div>
-
-    <div
-      class="actions"
-      style="margin-top:20px"
-    >
-
-      <button id="playAgainBtn" class="hidden">
-        Play Another Round
-      </button>
-
-      <button
-        id="startNewGameBtn"
-        class="secondary hidden"
-      >
-        Start New Game
-      </button>
-
-    </div>
-
-    <div
-      id="playAgainMessage"
-      class="muted small"
-      style="margin-top:10px"
-    ></div>
-
-  </section>
-
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-
-<script>
-
-const socket = io({
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000
-});
-
-const SESSION_KEY = "imposterSessionId";
-const GAME_KEY = "imposterGameCode";
-const NAME_KEY = "imposterPlayerName";
-
-let sessionId = localStorage.getItem(SESSION_KEY);
-
-if (!sessionId) {
-  sessionId = crypto.randomUUID();
-  localStorage.setItem(SESSION_KEY, sessionId);
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const crypto = require("crypto");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+app.use(express.static("public"));
+
+const rooms = new Map();
+const disconnectTimers = new Map();
+
+const MAX_PLAYERS = 40;
+const MIN_PLAYERS = 3;
+const RECONNECT_GRACE_MS = 90 * 1000;
+
+function makeCode() {
+  let code;
+  do code = crypto.randomBytes(3).toString("hex").toUpperCase();
+  while (rooms.has(code));
+  return code;
 }
 
-let me = sessionId;
-let room = null;
-let isHost = false;
-let secretVisible = false;
-let myVote = new Set();
-let heartbeatTimer = null;
-
-const $ = id => document.getElementById(id);
-
-const sections = [
-  "home",
-  "lobby",
-  "setup",
-  "playing",
-  "secret",
-  "voting",
-  "hostVoting",
-  "results"
-];
-
-function show(id) {
-
-  sections.forEach(
-    x => $(x).classList.toggle(
-      "hidden",
-      x !== id
-    )
-  );
-
+function makeSessionId() {
+  return crypto.randomUUID();
 }
 
-function setError(id, msg) {
-
-  $(id).innerHTML = msg
-    ? '<div class="error">' +
-      escapeHtml(msg) +
-      '</div>'
-    : "";
-
+function imposterCount(n) {
+  // Host is a controller and does not play, so n is total room size including host.
+  const playable = Math.max(n - 1, 0);
+  if (playable <= 10) return 1;
+  if (playable <= 20) return 2;
+  if (playable <= 30) return 3;
+  return 4;
 }
 
-function escapeHtml(s) {
-
-  return String(s).replace(
-    /[&<>"']/g,
-    c => ({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      '"':'&quot;',
-      "'":'&#039;'
-    }[c])
-  );
-
+function playablePlayers(room, { connectedOnly = false } = {}) {
+  return [...room.players.values()].filter(p => {
+    if (p.id === room.host) return false;
+    if (connectedOnly && !p.connected) return false;
+    return true;
+  });
 }
 
-function sync(r) {
-
-  room = r;
-  isHost = r.host === me;
-
-  render();
-
+function expectedVoters(room) {
+  // Only connected non-host players must vote. A player who left or
+  // disconnected cannot block reveal / completion of the round.
+  return playablePlayers(room, { connectedOnly: true });
 }
 
-function render() {
+function allVotesIn(room) {
+  const voters = expectedVoters(room);
+  // If nobody connected remains to vote, do not block the host from revealing.
+  if (voters.length === 0) return true;
+  return voters.every(p => room.votes.has(p.id));
+}
 
-  if (!room) return;
+function publicRoom(room, viewerId = null) {
+  const voters = expectedVoters(room);
+  const votesFromConnected = voters.filter(p => room.votes.has(p.id)).length;
 
-  $("roomCode").textContent =
-    room.code;
+  return {
+    code: room.code,
+    host: room.host,
+    phase: room.phase,
+    players: [...room.players.values()].map(p => ({
+      id: p.id,
+      name: p.name,
+      connected: p.connected
+    })),
+    playerCount: room.players.size,
+    connectedCount: [...room.players.values()].filter(p => p.connected).length,
+    maxPlayers: MAX_PLAYERS,
+    minPlayers: MIN_PLAYERS,
+    imposterCount:
+      room.phase === "lobby" || room.phase === "setup"
+        ? room.players.size >= MIN_PLAYERS
+          ? imposterCount(room.players.size)
+          : 0
+        : room.assignedImposterCount ||
+          room.imposterWords.length ||
+          imposterCount(room.players.size),
+    votesSubmitted: votesFromConnected,
+    votesNeeded: voters.length,
+    allVotesSubmitted: allVotesIn(room),
+    revealed: room.revealed,
+    hasVoted: viewerId ? room.votes.has(viewerId) : false,
+    hostImposters:
+      viewerId === room.host
+        ? [...room.assignments.entries()]
+            .filter(([, word]) => room.imposterWords.includes(word))
+            .map(([id]) => {
+              const player = room.players.get(id);
+              return player ? { id: player.id, name: player.name } : null;
+            })
+            .filter(Boolean)
+        : []
+  };
+}
 
-  $("playerCount").textContent =
-    room.playerCount +
-    " / " +
-    room.maxPlayers;
+function emitRoom(room) {
+  for (const player of room.players.values()) {
+    if (!player.connected) continue;
+    const playerSocket = io.sockets.sockets.get(player.socketId);
+    if (playerSocket) {
+      playerSocket.emit("room", publicRoom(room, player.id));
+    }
+  }
+}
 
-  $("imposterCount").textContent =
-    room.playerCount >= room.minPlayers
-      ? room.imposterCount
-      : "—";
+function error(cb, message) {
+  if (typeof cb === "function") cb({ ok: false, error: message });
+}
 
-  $("roleBadge").textContent =
-    isHost
-      ? "HOST / CONTROLLER"
-      : "PLAYER";
+function clearDisconnectTimer(playerId) {
+  const timer = disconnectTimers.get(playerId);
+  if (timer) {
+    clearTimeout(timer);
+    disconnectTimers.delete(playerId);
+  }
+}
 
-  $("roleBadge").className =
-    "badge " +
-    (isHost ? "hostbadge" : "");
+function sendSecretWord(room, playerId) {
+  const player = room.players.get(playerId);
+  if (!player || playerId === room.host || room.phase !== "playing") return;
 
-  $("playersList").innerHTML =
-    room.players.map(p =>
+  const socket = io.sockets.sockets.get(player.socketId);
+  if (!socket) return;
 
-      "<li><span>" +
+  socket.emit("secretWord", {
+    word: room.assignments.get(playerId),
+    playerCount: playablePlayers(room).length,
+    imposterCount: imposterCount(room.players.size)
+  });
+}
 
-      escapeHtml(p.name) +
+function sendResults(room, playerId) {
+  if (!room.result) return;
+  const player = room.players.get(playerId);
+  if (!player) return;
+  const socket = io.sockets.sockets.get(player.socketId);
+  if (socket) socket.emit("results", room.result);
+}
 
-      (
-        p.id === room.host
-          ? " 👑"
-          : ""
-      ) +
+function transferHost(room) {
+  const next = [...room.players.values()].find(p => p.connected) ||
+    [...room.players.values()][0];
+  if (!next) return;
+  room.host = next.id;
+  const sock = io.sockets.sockets.get(next.socketId);
+  if (sock) sock.emit("hostChanged");
+}
 
-      (
-        p.connected === false
-          ? ' <span class="muted small">(reconnecting)</span>'
-          : ""
-      ) +
+function removePlayer(room, playerId, reason = null) {
+  const player = room.players.get(playerId);
+  if (!player) return;
 
-      "</span>" +
+  clearDisconnectTimer(playerId);
+  room.players.delete(playerId);
+  room.votes.delete(playerId);
+  room.assignments.delete(playerId);
 
-      (
-        p.id === me
-          ? '<span class="muted small">You</span>'
-          : ""
-      ) +
-
-      "</li>"
-
-    ).join("");
-
-  $("hostControls")
-    .classList.toggle(
-      "hidden",
-      !isHost
-    );
-
-  $("startBtn").disabled =
-    !isHost ||
-    room.playerCount <
-    room.minPlayers;
-
-  $("startBtn").textContent =
-    room.playerCount <
-    room.minPlayers
-
-      ? "Waiting for " +
-        (
-          room.minPlayers -
-          room.playerCount
-        ) +
-        " more player" +
-        (
-          room.minPlayers -
-          room.playerCount === 1
-            ? ""
-            : "s"
-        )
-
-      : "Start Game";
-
-  if (room.phase === "lobby") {
-
-    show("lobby");
-
-    $("lobbyMessage").textContent =
-      isHost
-
-        ? "You are the host. Wait for everyone to join, then click Start Game."
-
-        : "You have joined. Waiting for the host to start the game.";
-
+  // Drop votes that targeted the removed player so tallies stay valid.
+  for (const [voterId, targets] of room.votes.entries()) {
+    const filtered = targets.filter(id => id !== playerId);
+    if (filtered.length === 0) {
+      room.votes.delete(voterId);
+    } else if (filtered.length !== targets.length) {
+      room.votes.set(voterId, filtered);
+    }
   }
 
-  else if (room.phase === "setup") {
-
-    $("hostImposterPanel")
-      .classList.add("hidden");
-
-    if (isHost) {
-
-      renderSetup();
-      show("setup");
-
-    }
-
-    else {
-
-      show("lobby");
-
-      $("lobbyMessage").textContent =
-        "The host is entering the secret words. Please wait.";
-
-    }
-
-  }
-
-  else if (room.phase === "playing") {
-
-    if (isHost) {
-
-      show("playing");
-
-      $("playingRole").textContent =
-        "HOST / CONTROLLER";
-
-      $("playingMessage").textContent =
-        "All players have received their private words. Let them play the clue round, then open voting.";
-
-      /*
-       * THIS IS THE IMPORTANT PART.
-       *
-       * The server sends hostImposters only to the host.
-       * The host sees the imposter names immediately
-       * after the words are submitted.
-       */
-      $("hostImposterPanel")
-        .classList.remove("hidden");
-
-      $("hostImposterList").innerHTML =
-
-        room.hostImposters &&
-        room.hostImposters.length
-
-          ? room.hostImposters
-              .map(p =>
-
-                '<div class="success" style="margin-top:6px">' +
-
-                '<strong>' +
-                escapeHtml(p.name) +
-                '</strong> is an imposter.' +
-
-                '</div>'
-
-              )
-              .join("")
-
-          : '<div class="muted">Imposter information is not available yet.</div>';
-
-      $("openVotingBtn")
-        .classList.remove("hidden");
-
-    }
-
-    else if (!secretVisible) {
-
-      $("hostImposterPanel")
-        .classList.add("hidden");
-
-      show("playing");
-
-      $("playingRole").textContent =
-        "PLAYER";
-
-      $("playingMessage").textContent =
-        "Clue round is in progress. Wait for the host to open voting.";
-
-      $("openVotingBtn")
-        .classList.add("hidden");
-
-    }
-
-  }
-
-  else if (room.phase === "voting") {
-
-    $("hostImposterPanel")
-      .classList.add("hidden");
-
-    if (isHost) {
-
-      show("hostVoting");
-
-      const totalPlayers =
-        room.playerCount - 1;
-
-      $("hostVoteProgress").textContent =
-        room.votesSubmitted +
-        " / " +
-        totalPlayers +
-        " players voted";
-
-      $("revealBtn").disabled =
-        !room.allVotesSubmitted;
-
-      $("revealError").innerHTML =
-        room.allVotesSubmitted
-
-          ? '<div class="success">Everyone has voted. You can reveal the results.</div>'
-
-          : "";
-
-    }
-
-    else {
-
-      show("voting");
-
-      renderVoting();
-
-    }
-
-  }
-
-  else if (room.phase === "results") {
-
-    $("hostImposterPanel")
-      .classList.add("hidden");
-
-    show("results");
-
-    $("playAgainBtn")
-      .classList.toggle(
-        "hidden",
-        !isHost
-      );
-
-    $("startNewGameBtn")
-      .classList.toggle(
-        "hidden",
-        !isHost
-      );
-
-    $("playAgainBtn").disabled =
-      false;
-
-    $("startNewGameBtn").disabled =
-      false;
-
-    $("playAgainMessage").textContent =
-      isHost
-
-        ? "Start another round using the same players."
-
-        : "Waiting for the host to start another round.";
-
-  }
-
-}
-
-function renderSetup() {
-
-  $("setupSummary").textContent =
-    room.playerCount +
-    " players joined. There are " +
-    room.imposterCount +
-    " imposters. You are the host and are not part of the player game.";
-
-  $("imposterFields").innerHTML =
-    "";
-
-  for (
-    let i = 1;
-    i <= room.imposterCount;
-    i++
-  ) {
-
-    $("imposterFields").innerHTML +=
-
-      '<label>Imposter Word ' +
-      i +
-      '</label>' +
-
-      '<input id="imp' +
-      i +
-      '" placeholder="Different imposter word">';
-
-  }
-
-}
-
-function renderVoting() {
-
-  const required =
-    room.imposterCount;
-
-  const hasVoted =
-    room.hasVoted === true;
-
-  $("voteSummary").textContent =
-
-    hasVoted
-
-      ? "✅ Your vote has been submitted. Waiting for the other players..."
-
-      : "Select exactly " +
-        required +
-        " player" +
-        (required > 1 ? "s" : "") +
-        ". Your vote stays private.";
-
-  const players =
-    room.players.filter(
-      p =>
-        p.id !== room.host &&
-        p.id !== me
-    );
-
-  $("voteOptions").innerHTML =
-
-    players.map(p =>
-
-      '<label class="voteRow">' +
-
-      '<input type="checkbox" value="' +
-      escapeHtml(p.id) +
-      '"' +
-
-      (
-        myVote.has(p.id)
-          ? " checked"
-          : ""
-      ) +
-
-      (
-        hasVoted
-          ? " disabled"
-          : ""
-      ) +
-
-      '> <span>' +
-
-      escapeHtml(p.name) +
-
-      '</span>' +
-
-      '</label>'
-
-    ).join("");
-
-  $("submitVote").disabled =
-    hasVoted;
-
-  $("voteError").innerHTML =
-    "";
-
-  $("voteOptions")
-    .querySelectorAll("input")
-    .forEach(input => {
-
-      input.addEventListener(
-        "change",
-        () => {
-
-          if (input.checked) {
-
-            if (
-              myVote.size >=
-              required
-            ) {
-
-              input.checked =
-                false;
-
-              return;
-
-            }
-
-            myVote.add(
-              input.value
-            );
-
-          }
-
-          else {
-
-            myVote.delete(
-              input.value
-            );
-
-          }
-
-        }
-      );
-
-    });
-
-}
-
-function resetToHome() {
-
-  room = null;
-  isHost = false;
-  secretVisible = false;
-  myVote = new Set();
-
-  clearGameSession();
-
-  $("name").value = "";
-  $("code").value = "";
-  $("homeError").innerHTML = "";
-
-  $("hostImposterPanel")
-    .classList.add("hidden");
-
-  show("home");
-
-}
-
-function saveGameSession(code, name) {
-
-  localStorage.setItem(
-    GAME_KEY,
-    code
-  );
-
-  localStorage.setItem(
-    NAME_KEY,
-    name
-  );
-
-}
-
-function clearGameSession() {
-
-  localStorage.removeItem(
-    GAME_KEY
-  );
-
-  localStorage.removeItem(
-    NAME_KEY
-  );
-
-}
-
-function restoreSession() {
-
-  const savedCode =
-    localStorage.getItem(
-      GAME_KEY
-    );
-
-  if (
-    !savedCode ||
-    !sessionId
-  ) {
+  if (room.players.size === 0) {
+    rooms.delete(room.code);
     return;
   }
 
-  socket.emit(
-    "restoreSession",
-
-    {
-      sessionId,
-      code: savedCode
-    },
-
-    res => {
-
-      if (!res.ok) {
-
-        resetToHome();
-
-        return;
-
-      }
-
-      me = res.id;
-
-      sync(res.room);
-
-      if (
-        res.room.phase ===
-        "playing"
-      ) {
-
-        secretVisible =
-          false;
-
-      }
-
-    }
-
-  );
-
-}
-
-function startHeartbeat() {
-
-  if (heartbeatTimer) {
-    clearInterval(
-      heartbeatTimer
-    );
-  }
-
-  heartbeatTimer =
-    setInterval(
-      () => {
-
-        if (
-          socket.connected
-        ) {
-
-          socket.emit(
-            "heartbeat"
-          );
-
-        }
-
-      },
-      20000
-    );
-
-}
-
-$("createBtn").onclick =
-  () => {
-
-    setError(
-      "homeError",
-      ""
-    );
-
-    const name =
-      $("name").value.trim();
-
-    socket.emit(
-      "createGame",
-      name,
-      sessionId,
-      res => {
-
-        if (!res.ok) {
-
-          return setError(
-            "homeError",
-            res.error
-          );
-
-        }
-
-        me = res.id;
-
-        saveGameSession(
-          res.code,
-          name
-        );
-
-        sync(res.room);
-
-      }
-    );
-
-  };
-
-$("joinBtn").onclick =
-  () => {
-
-    setError(
-      "homeError",
-      ""
-    );
-
-    const name =
-      $("name").value.trim();
-
-    const code =
-      $("code").value.trim();
-
-    socket.emit(
-      "joinGame",
-
-      {
-        name,
-        code,
-        sessionId
-      },
-
-      res => {
-
-        if (!res.ok) {
-
-          return setError(
-            "homeError",
-            res.error
-          );
-
-        }
-
-        me = res.id;
-
-        saveGameSession(
-          res.code,
-          name
-        );
-
-        sync(res.room);
-
-      }
-
-    );
-
-  };
-
-$("startBtn").onclick =
-  () => {
-
-    setError(
-      "setupError",
-      ""
-    );
-
-    socket.emit(
-      "openSetup",
-      room.code,
-      res => {
-
-        if (!res.ok) {
-
-          return setError(
-            "setupError",
-            res.error
-          );
-
-        }
-
-        sync(res.room);
-
-      }
-    );
-
-  };
-
-$("submitWords").onclick =
-  () => {
-
-    setError(
-      "setupError",
-      ""
-    );
-
-    const normalWord =
-      $("normalWord")
-        .value
-        .trim();
-
-    const imposterWords =
-      [];
-
-    for (
-      let i = 1;
-      i <= room.imposterCount;
-      i++
-    ) {
-
-      imposterWords.push(
-        $("imp" + i)
-          .value
-          .trim()
+  const wasHost = room.host === playerId;
+
+  if (wasHost) {
+    if (room.phase !== "lobby") {
+      io.to(room.code).emit(
+        "gameEnded",
+        reason || "The host left the game."
       );
-
-    }
-
-    socket.emit(
-      "startGame",
-
-      {
-        code: room.code,
-        normalWord,
-        imposterWords
-      },
-
-      res => {
-
-        if (!res.ok) {
-
-          return setError(
-            "setupError",
-            res.error
-          );
-
-        }
-
-      }
-
-    );
-
-  };
-
-$("openVotingBtn").onclick =
-  () => {
-
-    socket.emit(
-      "openVoting",
-      room.code,
-      res => {
-
-        if (!res.ok) {
-
-          alert(
-            res.error
-          );
-
-        }
-
-      }
-    );
-
-  };
-
-$("hideSecret").onclick =
-  () => {
-
-    secretVisible =
-      false;
-
-    show("playing");
-
-    $("playingRole").textContent =
-      "PLAYER";
-
-    $("playingMessage").textContent =
-      "Clue round is in progress. Wait for the host to open voting.";
-
-  };
-
-$("voteForm")
-  .addEventListener(
-    "submit",
-    e => {
-
-      e.preventDefault();
-
-      setError(
-        "voteError",
-        ""
-      );
-
-      const targets = [
-
-        ...$("voteOptions")
-          .querySelectorAll(
-            "input:checked"
-          )
-
-      ].map(
-        x => x.value
-      );
-
-      if (
-        targets.length !==
-        room.imposterCount
-      ) {
-
-        return setError(
-
-          "voteError",
-
-          "Select exactly " +
-          room.imposterCount +
-          " player" +
-          (
-            room.imposterCount > 1
-              ? "s"
-              : ""
-          ) +
-          "."
-
-        );
-
-      }
-
-      $("submitVote")
-        .disabled = true;
-
-      socket.emit(
-
-        "submitVote",
-
-        {
-          code: room.code,
-          targets: targets
-        },
-
-        res => {
-
-          if (!res.ok) {
-
-            $("submitVote")
-              .disabled = false;
-
-            return setError(
-              "voteError",
-              res.error
-            );
-
-          }
-
-          myVote =
-            new Set(targets);
-
-          $("voteSummary")
-            .textContent =
-            "✅ Your vote has been submitted. Waiting for the other players...";
-
-          $("voteOptions")
-            .querySelectorAll(
-              "input"
-            )
-            .forEach(
-              input => {
-                input.disabled =
-                  true;
-              }
-            );
-
-          $("submitVote")
-            .disabled = true;
-
-        }
-
-      );
-
-    }
-  );
-
-$("playAgainBtn").onclick =
-  () => {
-
-    $("playAgainBtn")
-      .disabled = true;
-
-    $("startNewGameBtn")
-      .disabled = true;
-
-    $("playAgainMessage")
-      .textContent =
-      "Starting another round...";
-
-    socket.emit(
-      "playAgain",
-      room.code,
-      res => {
-
-        if (!res.ok) {
-
-          $("playAgainBtn")
-            .disabled = false;
-
-          $("startNewGameBtn")
-            .disabled = false;
-
-          $("playAgainMessage")
-            .textContent =
-            res.error;
-
-          return;
-
-        }
-
-        myVote =
-          new Set();
-
-        secretVisible =
-          false;
-
-        $("playAgainMessage")
-          .textContent =
-          "";
-
-        sync(res.room);
-
-      }
-    );
-
-  };
-
-$("startNewGameBtn").onclick =
-  () => {
-
-    if (
-      !confirm(
-        "Start a completely new game? The current game will be closed for everyone."
-      )
-    ) {
-
+      for (const id of room.players.keys()) clearDisconnectTimer(id);
+      rooms.delete(room.code);
       return;
+    }
+    transferHost(room);
+    room.phase = "lobby";
+  }
 
+  emitRoom(room);
+}
+
+function scheduleDisconnectRemoval(room, playerId) {
+  clearDisconnectTimer(playerId);
+
+  const timer = setTimeout(() => {
+    disconnectTimers.delete(playerId);
+    const currentRoom = rooms.get(room.code);
+    if (!currentRoom) return;
+    const player = currentRoom.players.get(playerId);
+    if (!player || player.connected) return;
+
+    removePlayer(
+      currentRoom,
+      playerId,
+      playerId === currentRoom.host
+        ? "The host disconnected and did not reconnect."
+        : null
+    );
+  }, RECONNECT_GRACE_MS);
+
+  disconnectTimers.set(playerId, timer);
+}
+
+function resetRound(room) {
+  room.phase = "setup";
+  room.normalWord = "";
+  room.imposterWords = [];
+  room.assignedImposterCount = 0;
+  room.assignments = new Map();
+  room.votes = new Map();
+  room.revealed = false;
+  room.result = null;
+}
+
+function destroyRoom(room, message) {
+  io.to(room.code).emit("newGameStarted", message);
+  for (const id of room.players.keys()) clearDisconnectTimer(id);
+  rooms.delete(room.code);
+}
+
+io.on("connection", socket => {
+  socket.on("heartbeat", cb => {
+    if (typeof cb === "function") cb({ ok: true, time: Date.now() });
+  });
+
+  socket.on("restoreSession", ({ sessionId, code }, cb) => {
+    sessionId = String(sessionId || "").trim();
+    code = String(code || "").trim().toUpperCase();
+
+    const room = rooms.get(code);
+    const player = room?.players.get(sessionId);
+
+    if (!room || !player) {
+      return error(cb, "Your previous game session could not be restored.");
     }
 
-    $("playAgainBtn")
-      .disabled = true;
+    clearDisconnectTimer(sessionId);
+    player.socketId = socket.id;
+    player.connected = true;
+    socket.data.playerId = sessionId;
+    socket.data.roomCode = code;
+    socket.join(code);
 
-    $("startNewGameBtn")
-      .disabled = true;
+    const restoredRoom = publicRoom(room, sessionId);
+    cb?.({ ok: true, id: sessionId, code, room: restoredRoom });
+    socket.emit("room", restoredRoom);
 
-    socket.emit(
-      "startNewGame",
-      room.code,
-      res => {
+    if (room.phase === "playing") sendSecretWord(room, sessionId);
+    else if (room.phase === "results") sendResults(room, sessionId);
 
-        if (!res.ok) {
+    emitRoom(room);
+  });
 
-          $("playAgainBtn")
-            .disabled = false;
+  socket.on("createGame", (name, sessionId, cb) => {
+    if (typeof sessionId === "function") {
+      cb = sessionId;
+      sessionId = makeSessionId();
+    }
 
-          $("startNewGameBtn")
-            .disabled = false;
+    sessionId = String(sessionId || "").trim() || makeSessionId();
+    name = String(name || "").trim().slice(0, 30);
+    if (!name) return error(cb, "Enter your name.");
 
-          $("playAgainMessage")
-            .textContent =
-            res.error;
+    const code = makeCode();
+    const room = {
+      code,
+      host: sessionId,
+      phase: "lobby",
+      players: new Map(),
+      normalWord: "",
+      imposterWords: [],
+      assignedImposterCount: 0,
+      assignments: new Map(),
+      votes: new Map(),
+      revealed: false,
+      result: null
+    };
 
-          return;
+    room.players.set(sessionId, {
+      id: sessionId,
+      name,
+      joinedAt: Date.now(),
+      socketId: socket.id,
+      connected: true
+    });
 
-        }
+    rooms.set(code, room);
+    socket.data.playerId = sessionId;
+    socket.data.roomCode = code;
+    socket.join(code);
 
-        resetToHome();
+    cb?.({ ok: true, id: sessionId, code, room: publicRoom(room, sessionId) });
+    emitRoom(room);
+  });
 
+  socket.on("joinGame", ({ code, name, sessionId }, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    name = String(name || "").trim().slice(0, 30);
+    sessionId = String(sessionId || "").trim() || makeSessionId();
+
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found. Check the code.");
+
+    const existingPlayer = room.players.get(sessionId);
+    if (existingPlayer) {
+      clearDisconnectTimer(sessionId);
+      existingPlayer.socketId = socket.id;
+      existingPlayer.connected = true;
+      if (name) existingPlayer.name = name;
+      socket.data.playerId = sessionId;
+      socket.data.roomCode = code;
+      socket.join(code);
+      cb?.({ ok: true, id: sessionId, code, room: publicRoom(room, sessionId) });
+      emitRoom(room);
+      return;
+    }
+
+    if (room.phase !== "lobby") {
+      return error(cb, "This game has already started.");
+    }
+    if (!name) return error(cb, "Enter your name.");
+    if (room.players.size >= MAX_PLAYERS) {
+      return error(cb, "This game is full (40 players max).");
+    }
+
+    room.players.set(sessionId, {
+      id: sessionId,
+      name,
+      joinedAt: Date.now(),
+      socketId: socket.id,
+      connected: true
+    });
+
+    socket.data.playerId = sessionId;
+    socket.data.roomCode = code;
+    socket.join(code);
+
+    cb?.({ ok: true, id: sessionId, code, room: publicRoom(room, sessionId) });
+    emitRoom(room);
+  });
+
+  socket.on("leaveRoom", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    const playerId = socket.data.playerId;
+
+    if (!room || !playerId || !room.players.has(playerId)) {
+      return error(cb, "You are not in this game.");
+    }
+
+    socket.leave(code);
+    socket.data.roomCode = null;
+    socket.data.playerId = null;
+
+    removePlayer(room, playerId, "The host left the game.");
+    cb?.({ ok: true });
+  });
+
+  socket.on("openSetup", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can start the game.");
+    }
+    if (room.players.size < MIN_PLAYERS) {
+      return error(cb, `At least ${MIN_PLAYERS} players are required.`);
+    }
+
+    room.phase = "setup";
+    cb?.({ ok: true, room: publicRoom(room, socket.data.playerId) });
+    emitRoom(room);
+  });
+
+  socket.on("startGame", ({ code, normalWord, imposterWords }, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can submit the words.");
+    }
+    if (room.phase !== "setup") {
+      return error(cb, "Game setup is not open.");
+    }
+
+    const count = imposterCount(room.players.size);
+    normalWord = String(normalWord || "").trim();
+    imposterWords = Array.isArray(imposterWords)
+      ? imposterWords.map(w => String(w || "").trim())
+      : [];
+
+    if (!normalWord) return error(cb, "Enter the normal-player word.");
+    if (imposterWords.length !== count || imposterWords.some(w => !w)) {
+      return error(
+        cb,
+        `Enter ${count} imposter word${count > 1 ? "s" : ""}.`
+      );
+    }
+
+    const allWords = [normalWord, ...imposterWords].map(w => w.toLowerCase());
+    if (new Set(allWords).size !== allWords.length) {
+      return error(cb, "All words must be different.");
+    }
+
+    const playerIds = [...room.players.keys()];
+    for (let i = playerIds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
+    }
+
+    room.normalWord = normalWord;
+    room.imposterWords = imposterWords;
+    room.assignedImposterCount = count;
+    room.assignments = new Map();
+    room.votes = new Map();
+    room.revealed = false;
+    room.result = null;
+
+    const playableIds = playerIds.filter(id => id !== room.host);
+    if (playableIds.length < count) {
+      return error(cb, "Not enough players to assign the imposters.");
+    }
+
+    const imposterIds = playableIds.slice(0, count);
+    const imposterById = new Map();
+    imposterIds.forEach((id, index) => {
+      imposterById.set(id, imposterWords[index]);
+    });
+
+    for (const id of playableIds) {
+      room.assignments.set(id, imposterById.get(id) || normalWord);
+    }
+
+    room.phase = "playing";
+    for (const id of playableIds) sendSecretWord(room, id);
+
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("openVoting", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can open voting.");
+    }
+    if (room.phase !== "playing") {
+      return error(cb, "Voting cannot be opened yet.");
+    }
+
+    room.phase = "voting";
+    room.votes = new Map();
+    room.revealed = false;
+    room.result = null;
+
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("submitVote", ({ code, targets }, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.phase !== "voting") return error(cb, "Voting is not open.");
+
+    const playerId = socket.data.playerId;
+    if (playerId === room.host) return error(cb, "The host does not vote.");
+    if (!room.players.has(playerId)) {
+      return error(cb, "You are no longer in this game.");
+    }
+
+    const playableIds = playablePlayers(room).map(p => p.id);
+    // Vote for the number of imposters that were assigned at start,
+    // capped by remaining playable players (minus self).
+    const assignedCount =
+      room.assignedImposterCount ||
+      room.imposterWords.length ||
+      imposterCount(room.players.size);
+    const maxSelectable = Math.max(playableIds.filter(id => id !== playerId).length, 1);
+    const required = Math.min(assignedCount, maxSelectable);
+
+    const uniqueTargets = [...new Set(Array.isArray(targets) ? targets : [])];
+
+    if (uniqueTargets.length !== required) {
+      return error(
+        cb,
+        `Select exactly ${required} player${required > 1 ? "s" : ""}.`
+      );
+    }
+
+    if (uniqueTargets.some(id => !playableIds.includes(id) || id === playerId)) {
+      return error(cb, "Invalid vote selection.");
+    }
+
+    room.votes.set(playerId, uniqueTargets);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("revealResults", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can reveal results.");
+    }
+    if (room.phase !== "voting") return error(cb, "Voting is not open.");
+
+    if (!allVotesIn(room)) {
+      return error(
+        cb,
+        "Wait until every connected player has voted. Players who left no longer block the game."
+      );
+    }
+
+    room.phase = "results";
+    room.revealed = true;
+
+    const counts = {};
+    for (const p of playablePlayers(room)) counts[p.id] = 0;
+
+    for (const targets of room.votes.values()) {
+      for (const target of targets) {
+        if (counts[target] !== undefined) counts[target] += 1;
       }
+    }
+
+    const imposters = [...room.assignments.entries()]
+      .filter(([, word]) => room.imposterWords.includes(word))
+      .map(([id]) => id)
+      .filter(id => room.players.has(id));
+
+    room.result = {
+      playerCount: playablePlayers(room).length,
+      imposterCount: imposters.length,
+      players: playablePlayers(room).map(p => ({
+        id: p.id,
+        name: p.name,
+        votes: counts[p.id] || 0,
+        word: room.assignments.get(p.id),
+        isImposter: imposters.includes(p.id),
+        connected: p.connected
+      })),
+      normalWord: room.normalWord,
+      imposterWords: room.imposterWords
+    };
+
+    io.to(room.code).emit("results", room.result);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  // Host can restart the round from any non-lobby phase (fixes stuck mid-game).
+  socket.on("playAgain", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can start another round.");
+    }
+    if (room.phase === "lobby") {
+      return error(cb, "The game has not started yet.");
+    }
+    if (room.players.size < MIN_PLAYERS) {
+      return error(cb, `At least ${MIN_PLAYERS} players are required.`);
+    }
+
+    resetRound(room);
+
+    io.to(room.code).emit(
+      "roundStarting",
+      "Starting another round… The host is setting up the new words."
     );
 
-  };
+    cb?.({ ok: true, room: publicRoom(room, socket.data.playerId) });
+    emitRoom(room);
+  });
 
-$("revealBtn").onclick =
-  () => {
+  socket.on("returnToLobby", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can return to the lobby.");
+    }
 
-    socket.emit(
-      "revealResults",
-      room.code,
-      res => {
+    room.phase = "lobby";
+    room.normalWord = "";
+    room.imposterWords = [];
+    room.assignedImposterCount = 0;
+    room.assignments = new Map();
+    room.votes = new Map();
+    room.revealed = false;
+    room.result = null;
 
-        if (!res.ok) {
-
-          $("revealError")
-            .innerHTML =
-
-            '<div class="error">' +
-            escapeHtml(res.error) +
-            '</div>';
-
-        }
-
-      }
+    io.to(room.code).emit(
+      "roundStarting",
+      "The host returned everyone to the lobby."
     );
 
-  };
+    cb?.({ ok: true, room: publicRoom(room, socket.data.playerId) });
+    emitRoom(room);
+  });
 
-socket.on(
-  "connect",
-  () => {
-
-    startHeartbeat();
-    restoreSession();
-
-  }
-);
-
-socket.on(
-  "disconnect",
-  () => {
-
-    /*
-     * Socket.IO automatically tries to reconnect.
-     * We do not reload the page.
-     */
-
-    if (room) {
-
-      const message =
-        room.phase === "playing"
-
-          ? "Connection interrupted. Reconnecting automatically…"
-
-          : "Connection interrupted. Reconnecting…";
-
-      if (
-        room.phase === "playing" &&
-        !isHost
-      ) {
-
-        $("playingMessage")
-          .textContent =
-          message;
-
-      }
-
+  socket.on("startNewGame", (code, cb) => {
+    code = String(code || "").trim().toUpperCase();
+    const room = rooms.get(code);
+    if (!room) return error(cb, "Game not found.");
+    if (room.host !== socket.data.playerId) {
+      return error(cb, "Only the host can start a new game.");
     }
 
-  }
-);
+    destroyRoom(
+      room,
+      "The host started a new game. Returning to the home screen."
+    );
+    cb?.({ ok: true });
+  });
 
-socket.on(
-  "connect_error",
-  () => {
+  socket.on("disconnect", () => {
+    const playerId = socket.data.playerId;
+    const code = socket.data.roomCode;
+    if (!playerId || !code) return;
 
-    /*
-     * No redirect/reload.
-     * Socket.IO continues automatic
-     * reconnection attempts.
-     */
+    const room = rooms.get(code);
+    if (!room) return;
 
-  }
-);
+    const player = room.players.get(playerId);
+    if (!player) return;
+    if (player.socketId !== socket.id) return;
 
-socket.on(
-  "room",
-  sync
-);
+    player.connected = false;
 
-socket.on(
-  "secretWord",
-  data => {
-
-    secretVisible =
-      true;
-
-    $("secretWord")
-      .textContent =
-      data.word;
-
-    show("secret");
-
-  }
-);
-
-socket.on(
-  "results",
-  result => {
-
-    show("results");
-
-    $("playAgainBtn")
-      .classList.toggle(
-        "hidden",
-        !isHost
-      );
-
-    $("startNewGameBtn")
-      .classList.toggle(
-        "hidden",
-        !isHost
-      );
-
-    $("playAgainBtn")
-      .disabled = false;
-
-    $("startNewGameBtn")
-      .disabled = false;
-
-    $("playAgainMessage")
-      .textContent =
-      isHost
-
-        ? "Start another round using the same players."
-
-        : "Waiting for the host to start another round.";
-
-    $("resultsSummary")
-      .textContent =
-
-      result.playerCount +
-      " players voted. There were " +
-      result.imposterCount +
-      " imposters.";
-
-    const imposters =
-      result.players.filter(
-        p => p.isImposter
-      );
-
-    $("impostersResult")
-      .innerHTML =
-
-      imposters.map(
-        p =>
-
-          '<div class="success">' +
-
-          '<strong>' +
-          escapeHtml(p.name) +
-          '</strong> was an imposter.' +
-
-          '</div>'
-
-      ).join("");
-
-    $("resultsTable")
-      .innerHTML =
-
-      result.players
-
-        .sort(
-          (a,b) =>
-            b.votes -
-            a.votes
-        )
-
-        .map(
-          p =>
-
-            '<div class="resultRow">' +
-
-            '<span>' +
-            escapeHtml(p.name) +
-            '</span>' +
-
-            '<strong>' +
-            p.votes +
-            ' vote' +
-            (
-              p.votes === 1
-                ? ''
-                : 's'
-            ) +
-            '</strong>' +
-
-            '<span>' +
-            (
-              p.isImposter
-                ? "IMPOSTER"
-                : "Player"
-            ) +
-            '</span>' +
-
-            '</div>'
-
-        ).join("");
-
-    $("wordsResult")
-      .innerHTML =
-
-      "<div><strong>Normal:</strong> " +
-      escapeHtml(
-        result.normalWord
-      ) +
-      "</div>" +
-
-      result.imposterWords
-
-        .map(
-          (w,i) =>
-
-            "<div><strong>Imposter " +
-            (i+1) +
-            ":</strong> " +
-            escapeHtml(w) +
-            "</div>"
-
-        )
-
-        .join("");
-
-  }
-);
-
-socket.on(
-  "roundStarting",
-  message => {
-
-    secretVisible =
-      false;
-
-    myVote =
-      new Set();
-
-    show("lobby");
-
-    $("lobbyMessage")
-      .textContent =
-      message;
-
-  }
-);
-
-socket.on(
-  "newGameStarted",
-  message => {
-
-    const wasHost =
-      isHost;
-
-    resetToHome();
-
-    if (!wasHost) {
-
-      alert(message);
-
+    // During voting, a disconnect must not block the round.
+    // Drop their pending vote requirement immediately via connectedOnly counting,
+    // and remove their incomplete vote so progress stays accurate.
+    if (room.phase === "voting" && !room.votes.has(playerId)) {
+      // no-op: expectedVoters already ignores disconnected players
     }
 
-  }
-);
+    scheduleDisconnectRemoval(room, playerId);
+    emitRoom(room);
+  });
+});
 
-socket.on(
-  "hostChanged",
-  () => {
-
-    if (room) {
-
-      room.host =
-        me;
-
-      isHost =
-        true;
-
-      sync(room);
-
-    }
-
-  }
-);
-
-socket.on(
-  "gameEnded",
-  msg => {
-
-    clearGameSession();
-
-    alert(msg);
-
-    location.reload();
-
-  }
-);
-
-</script>
-
-</body>
-</html>
+const PORT = process.env.PORT || 3847;
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Imposter game server listening on ${PORT}`);
+});
