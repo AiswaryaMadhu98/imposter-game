@@ -453,24 +453,44 @@
   </header>
 
   <section id="home" class="card">
-    <h2>Create a room</h2>
-    <p class="muted small">Host a match for 3–40 players. Share the code or link — everyone joins live.</p>
+    <!-- Host landing: create only. Shared join links never show this. -->
+    <div id="homeHost">
+      <h2>Create a room</h2>
+      <p class="muted small">You’re the host. Create a room, then share the link with your group. Players who open that link only join — they won’t create a new room.</p>
 
-    <label for="name">Your name</label>
-    <input id="name" type="text" maxlength="30" placeholder="Enter your name" autocomplete="nickname">
+      <label for="name">Your name</label>
+      <input id="name" type="text" maxlength="30" placeholder="Enter your name" autocomplete="nickname">
 
-    <div class="actions">
-      <button id="createBtn" type="button">Create Room</button>
+      <div class="actions">
+        <button id="createBtn" type="button">Create Room</button>
+      </div>
+
+      <p class="muted small" style="margin-top:18px">
+        Already have a code?
+        <button id="showManualJoin" class="ghost" type="button" style="padding:6px 10px;font-size:13px;margin-left:4px">Join with code</button>
+      </p>
     </div>
 
-    <div class="divider"></div>
+    <!-- Player landing from shared link (?join=CODE), or manual join -->
+    <div id="homeJoin" class="hidden">
+      <h2>Join the room</h2>
+      <p id="joinIntro" class="muted small">Enter your name to join this game.</p>
 
-    <h2>Join a room</h2>
-    <label for="code">Room code</label>
-    <input id="code" type="text" maxlength="6" placeholder="ABC123" style="text-transform:uppercase" autocomplete="off">
+      <div id="joinCodePanel" class="panel" style="margin:14px 0">
+        <div class="label">Room code</div>
+        <div id="joinCodeDisplay" class="stat" style="letter-spacing:0.14em"></div>
+      </div>
 
-    <div class="actions">
-      <button id="joinBtn" class="secondary" type="button">Join Room</button>
+      <label for="joinName">Your name</label>
+      <input id="joinName" type="text" maxlength="30" placeholder="Enter your name" autocomplete="nickname">
+
+      <label id="codeLabel" class="hidden" for="code">Room code</label>
+      <input id="code" class="hidden" type="text" maxlength="6" placeholder="ABC123" style="text-transform:uppercase" autocomplete="off">
+
+      <div class="actions">
+        <button id="joinBtn" type="button">Join Room</button>
+        <button id="backToCreate" class="ghost hidden" type="button">Back</button>
+      </div>
     </div>
 
     <div id="homeError"></div>
@@ -664,8 +684,50 @@ const sections = ["home", "lobby", "setup", "playing", "secret", "voting", "host
 
 const params = new URLSearchParams(location.search);
 const joinCode = (params.get("join") || params.get("code") || "").toUpperCase();
+
+function showHostHome() {
+  $("homeHost").classList.remove("hidden");
+  $("homeJoin").classList.add("hidden");
+  $("codeLabel").classList.add("hidden");
+  $("code").classList.add("hidden");
+  $("backToCreate").classList.add("hidden");
+  $("joinCodePanel").classList.remove("hidden");
+  $("homeError").innerHTML = "";
+}
+
+function showJoinHome({ code = "", manual = false } = {}) {
+  $("homeHost").classList.add("hidden");
+  $("homeJoin").classList.remove("hidden");
+  $("homeError").innerHTML = "";
+
+  const normalized = String(code || "").trim().toUpperCase();
+  $("code").value = normalized;
+  $("joinCodeDisplay").textContent = normalized || "—";
+
+  if (manual && !normalized) {
+    // Manual join: type a code yourself
+    $("joinIntro").textContent = "Enter the room code from your host, then your name.";
+    $("joinCodePanel").classList.add("hidden");
+    $("codeLabel").classList.remove("hidden");
+    $("code").classList.remove("hidden");
+    $("backToCreate").classList.remove("hidden");
+  } else {
+    // Shared link: code is fixed, only ask for name
+    $("joinIntro").textContent = "You’ve been invited. Enter your name to join — you won’t create a new room.";
+    $("joinCodePanel").classList.remove("hidden");
+    $("codeLabel").classList.add("hidden");
+    $("code").classList.add("hidden");
+    $("backToCreate").classList.toggle("hidden", !manual);
+  }
+
+  const saved = localStorage.getItem(NAME_KEY);
+  if (saved && !$("joinName").value) $("joinName").value = saved;
+}
+
 if (joinCode) {
-  $("code").value = joinCode;
+  showJoinHome({ code: joinCode, manual: false });
+} else {
+  showHostHome();
 }
 
 function show(id) {
@@ -906,7 +968,7 @@ function paintResults(result) {
     </div>`;
 }
 
-function resetToHome() {
+function resetToHome({ keepJoinLink = false } = {}) {
   room = null;
   isHost = false;
   secretVisible = false;
@@ -916,6 +978,19 @@ function resetToHome() {
   $("homeError").innerHTML = "";
   $("hostImposterPanel").classList.add("hidden");
   show("home");
+
+  const linkCode = (
+    new URLSearchParams(location.search).get("join") ||
+    new URLSearchParams(location.search).get("code") ||
+    ""
+  ).toUpperCase();
+
+  if (keepJoinLink && linkCode) {
+    showJoinHome({ code: linkCode, manual: false });
+  } else {
+    history.replaceState({}, "", location.pathname);
+    showHostHome();
+  }
 }
 
 function saveGameSession(code, name) {
@@ -952,7 +1027,12 @@ function startHeartbeat() {
 
 function leaveRoom() {
   if (!room) return resetToHome();
-  socket.emit("leaveRoom", room.code, () => resetToHome());
+  const wasHost = isHost;
+  socket.emit("leaveRoom", room.code, () => {
+    // Players who leave a shared invite can rejoin the same link;
+    // hosts go back to the create screen.
+    resetToHome({ keepJoinLink: !wasHost });
+  });
 }
 
 function exitEntireGame() {
@@ -1004,6 +1084,7 @@ $("createBtn").onclick = () => {
     if (!res.ok) return setError("homeError", res.error);
     me = res.id;
     saveGameSession(res.code, name);
+    // Host stays on lobby; share link still uses ?join= for players
     history.replaceState({}, "", `?join=${encodeURIComponent(res.code)}`);
     sync(res.room);
   });
@@ -1011,8 +1092,9 @@ $("createBtn").onclick = () => {
 
 $("joinBtn").onclick = () => {
   setError("homeError", "");
-  const name = $("name").value.trim();
+  const name = $("joinName").value.trim();
   const code = $("code").value.trim();
+  if (!code) return setError("homeError", "Enter the room code.");
   socket.emit("joinGame", { name, code, sessionId }, res => {
     if (!res.ok) return setError("homeError", res.error);
     me = res.id;
@@ -1021,6 +1103,25 @@ $("joinBtn").onclick = () => {
     sync(res.room);
   });
 };
+
+$("showManualJoin").onclick = () => {
+  showJoinHome({ code: "", manual: true });
+};
+
+$("backToCreate").onclick = () => {
+  history.replaceState({}, "", location.pathname);
+  showHostHome();
+};
+
+$("joinName").addEventListener("keydown", e => {
+  if (e.key === "Enter") $("joinBtn").click();
+});
+$("code").addEventListener("keydown", e => {
+  if (e.key === "Enter") $("joinBtn").click();
+});
+$("name").addEventListener("keydown", e => {
+  if (e.key === "Enter") $("createBtn").click();
+});
 
 $("startBtn").onclick = () => {
   setError("setupError", "");
@@ -1125,7 +1226,10 @@ $("copyLinkBtn").onclick = () => copyText($("shareLink").value, $("copyLinkBtn")
 $("copyCodeBtn").onclick = () => copyText(room?.code || "", $("copyCodeBtn"));
 
 const savedName = localStorage.getItem(NAME_KEY);
-if (savedName) $("name").value = savedName;
+if (savedName) {
+  $("name").value = savedName;
+  $("joinName").value = savedName;
+}
 
 socket.on("connect", () => {
   startHeartbeat();
