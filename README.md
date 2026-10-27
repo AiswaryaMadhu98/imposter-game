@@ -1,14 +1,24 @@
-# Multiplayer Imposter Game
+# IMPOSTER — Multiplayer Party Game
 
-A real-time multiplayer web game for up to 30 players. One shared URL, one room code, one imposter.
+Real-time web game for **3–40 players**. One host creates a room, shares a code or link, deals secret words, watches who the imposters are, opens voting, and reveals results.
+
+## How it works
+
+1. **Host** creates a room and shares the code or join link.
+2. Players join live in the lobby (host sees everyone arrive).
+3. Host starts the game and enters one crew word plus separate imposter word(s).
+4. Each player gets a private word notification. Imposters get the odd word(s). Host sees who the imposters are.
+5. The group discusses offline, then the host opens voting.
+6. Everyone connected votes. If someone leaves mid-game, voting can still finish.
+7. Host reveals results, then can play another round, return to lobby, or exit.
 
 ## Run locally
+
 1. Install Node.js 18+.
 2. In this folder run `npm install`.
 3. Run `npm start`.
-4. Open http://localhost:3000 on your computer.
+4. Open the URL printed in the terminal (default port **3847**).
 
-## Put it online
-Deploy this folder to a Node-compatible host such as Render, Railway, or another service that supports a long-running Node.js web service. Use `npm install` as the build/install step and `npm start` as the start command. The service must support WebSockets/Socket.IO.
-
-The current version keeps game rooms in server memory. A room disappears if the server restarts. For a public production version, add persistent storage and authentication/rate limits.
+```bash
+npm install
+npm start
